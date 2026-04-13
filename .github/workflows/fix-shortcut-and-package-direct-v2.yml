@@ -1,0 +1,197 @@
+name: Fix shortcut and package directly v2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Rewrite files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          NEW_PACKAGE = "com.isaiandco.neko"
+          NEW_ACTION = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding="utf-8")
+
+          def write(path: str, content: str) -> None:
+              Path(path).write_text(content, encoding="utf-8")
+
+          # nb4a.properties
+          path = "nb4a.properties"
+          text = read(path)
+          text = text.replace("PACKAGE_NAME=com.nb4a\n", f"PACKAGE_NAME={NEW_PACKAGE}\n")
+          write(path, text)
+
+          # shortcuts.xml
+          path = "app/src/main/res/xml/shortcuts.xml"
+          text = read(path)
+          text = text.replace(
+              '<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.QuickToggleShortcut" />',
+              f'<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.QuickToggleShortcut"\n            android:targetPackage="{NEW_PACKAGE}" />'
+          )
+          text = text.replace(
+              '<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.QuickEnableShortcut" />',
+              f'<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.QuickEnableShortcut"\n            android:targetPackage="{NEW_PACKAGE}" />'
+          )
+          text = text.replace(
+              '<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.QuickDisableShortcut" />',
+              f'<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.QuickDisableShortcut"\n            android:targetPackage="{NEW_PACKAGE}" />'
+          )
+          text = text.replace(
+              '<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.ScannerActivity" />',
+              f'<intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.ScannerActivity"\n            android:targetPackage="{NEW_PACKAGE}" />'
+          )
+          old_clear = (
+              '    <shortcut\n'
+              '        android:icon="@drawable/ic_qu_shadowsocks_launcher"\n'
+              '        android:shortcutId="clear-cache-restart"\n'
+              '        android:shortcutLongLabel="@string/quick_clear_cache_restart"\n'
+              '        android:shortcutShortLabel="@string/quick_clear_cache_restart">\n'
+              '        <intent\n'
+              '            android:action="android.intent.action.MAIN"\n'
+              '            android:targetClass="io.nekohasekai.sagernet.ui.QuickClearCacheShortcut" />\n'
+              '    </shortcut>\n'
+          )
+          new_clear = (
+              '    <shortcut\n'
+              '        android:icon="@drawable/ic_qu_shadowsocks_launcher"\n'
+              '        android:shortcutId="clear-cache-restart"\n'
+              '        android:shortcutLongLabel="@string/quick_clear_cache_restart"\n'
+              '        android:shortcutShortLabel="@string/quick_clear_cache_restart">\n'
+              '        <intent\n'
+              f'            android:action="{NEW_ACTION}"\n'
+              '            android:targetClass="io.nekohasekai.sagernet.ui.MainActivity"\n'
+              f'            android:targetPackage="{NEW_PACKAGE}" />\n'
+              '    </shortcut>\n'
+          )
+          text = text.replace(old_clear, new_clear)
+          write(path, text)
+
+          # MainActivity.kt
+          path = "app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt"
+          text = read(path)
+          if "import android.widget.Toast\n" not in text:
+              text = text.replace(
+                  "import android.view.MenuItem\n",
+                  "import android.view.MenuItem\nimport android.widget.Toast\n",
+                  1,
+              )
+          if "import com.jakewharton.processphoenix.ProcessPhoenix\n" not in text:
+              text = text.replace(
+                  "import com.google.android.material.snackbar.Snackbar\n",
+                  "import com.google.android.material.snackbar.Snackbar\nimport com.jakewharton.processphoenix.ProcessPhoenix\n",
+                  1,
+              )
+          if "import java.io.File\n" not in text:
+              text = text.replace(
+                  "import moe.matsuri.nb4a.utils.Util\n",
+                  "import moe.matsuri.nb4a.utils.Util\nimport java.io.File\n",
+                  1,
+              )
+
+          companion_block = (
+              "\n    companion object {\n"
+              f'        const val ACTION_CLEAR_CACHE_AND_RESTART = "{NEW_ACTION}"\n'
+              "    }\n"
+          )
+          if "ACTION_CLEAR_CACHE_AND_RESTART" not in text:
+              text = text.replace(
+                  "    lateinit var binding: LayoutMainBinding\n    lateinit var navigation: NavigationView\n",
+                  "    lateinit var binding: LayoutMainBinding\n    lateinit var navigation: NavigationView\n" + companion_block,
+                  1,
+              )
+
+          text = text.replace(
+              "        if (intent?.action == Intent.ACTION_VIEW) {\n            onNewIntent(intent)\n        }\n",
+              "        intent?.let {\n            if (!handleSpecialIntent(it) && it.action == Intent.ACTION_VIEW) {\n                onNewIntent(it)\n            }\n        }\n",
+          )
+          text = text.replace(
+              "    override fun onNewIntent(intent: Intent) {\n        super.onNewIntent(intent)\n\n        val uri = intent.data ?: return\n",
+              "    override fun onNewIntent(intent: Intent) {\n        super.onNewIntent(intent)\n        setIntent(intent)\n\n        if (handleSpecialIntent(intent)) return\n\n        val uri = intent.data ?: return\n",
+          )
+
+          helper_block = (
+              "    private fun handleSpecialIntent(intent: Intent): Boolean {\n"
+              "        if (intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false\n"
+              "        clearAppCacheAndRestart()\n"
+              "        return true\n"
+              "    }\n\n"
+              "    private fun clearAppCacheAndRestart() {\n"
+              "        runOnDefaultDispatcher {\n"
+              "            try {\n"
+              "                SagerNet.stopService()\n"
+              "                Thread.sleep(300)\n"
+              "                clearDirFiles(SagerNet.application.cacheDir, skipFiles = setOf(\"neko.log\"))\n"
+              "                val parentDir = SagerNet.application.cacheDir.parentFile\n"
+              "                val relativeCache = parentDir?.let { File(it, \"cache\") }\n"
+              "                if (relativeCache != null && relativeCache.exists() && relativeCache.isDirectory) {\n"
+              "                    clearDirFiles(relativeCache)\n"
+              "                }\n"
+              "                onMainDispatcher {\n"
+              "                    Toast.makeText(this@MainActivity, R.string.clear_cache_success, Toast.LENGTH_SHORT).show()\n"
+              "                    ProcessPhoenix.triggerRebirth(this@MainActivity)\n"
+              "                }\n"
+              "            } catch (e: Exception) {\n"
+              "                onMainDispatcher {\n"
+              "                    Toast.makeText(this@MainActivity, getString(R.string.clear_cache_failed, e.message), Toast.LENGTH_SHORT).show()\n"
+              "                }\n"
+              "            }\n"
+              "        }\n"
+              "    }\n\n"
+              "    private fun clearDirFiles(dir: File, skipFiles: Set<String> = emptySet()): Boolean {\n"
+              "        if (!dir.isDirectory) return false\n"
+              "        val children = dir.list() ?: return true\n"
+              "        for (child in children) {\n"
+              "            val childFile = File(dir, child)\n"
+              "            if (child == \"neko.log\") {\n"
+              "                try {\n"
+              "                    childFile.writeText(\"\")\n"
+              "                    continue\n"
+              "                } catch (_: Exception) {\n"
+              "                }\n"
+              "            }\n"
+              "            if (child in skipFiles) continue\n"
+              "            if (childFile.isDirectory) {\n"
+              "                clearDirFiles(childFile, skipFiles)\n"
+              "            } else {\n"
+              "                childFile.delete()\n"
+              "            }\n"
+              "        }\n"
+              "        return true\n"
+              "    }\n\n"
+          )
+          if "private fun handleSpecialIntent(intent: Intent): Boolean" not in text:
+              text = text.replace("    fun urlTest(): Int {\n", helper_block + "    fun urlTest(): Int {\n", 1)
+
+          write(path, text)
+          PY
+
+      - name: Show diff
+        run: git diff -- nb4a.properties app/src/main/res/xml/shortcuts.xml app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add nb4a.properties app/src/main/res/xml/shortcuts.xml app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt
+          git commit -m "Fix package name and cache shortcut directly v2"
+          git push
