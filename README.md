@@ -1,7 +1,6 @@
 # NekoBox for Android
 
 [![API](https://img.shields.io/badge/API-21%2B-brightgreen.svg?style=flat)](https://android-arsenal.com/api?level=21)
-[![Releases](https://img.shields.io/github/v/release/MatsuriDayo/NekoBoxForAndroid)](https://github.com/MatsuriDayo/NekoBoxForAndroid/releases)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-orange.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 ## Отказ от ответственности
@@ -12,7 +11,6 @@
 
 В этом репозитории, помимо исходной функциональности проекта, внесены дополнительные изменения:
 
-- README полностью переведён на русский язык.
 - Обновлён процесс release-сборки: итоговые APK собираются в заранее определённую директорию с артефактами, чтобы их было проще находить после сборки.
 - Скорректирована логика действия **Clear Cache & Restart** для более корректной очистки кэша и повторного запуска приложения через ярлык.
 - Документация дополнена описанием локальных доработок форка, чтобы отличия от исходного проекта были видны сразу в репозитории.
