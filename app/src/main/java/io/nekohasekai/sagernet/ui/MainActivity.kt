@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.RemoteException
 import android.view.KeyEvent
 import android.view.MenuItem
+import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.annotation.IdRes
 import androidx.core.app.ActivityCompat
@@ -20,6 +21,7 @@ import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
+import com.jakewharton.processphoenix.ProcessPhoenix
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
@@ -53,6 +55,7 @@ import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ui.MessageStore
 import io.nekohasekai.sagernet.ktx.Logs
 import moe.matsuri.nb4a.utils.Util
+import java.io.File
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -61,6 +64,10 @@ class MainActivity : ThemedActivity(),
 
     lateinit var binding: LayoutMainBinding
     lateinit var navigation: NavigationView
+
+    companion object {
+        const val ACTION_CLEAR_CACHE_AND_RESTART = "com.nb4a.action.CLEAR_CACHE_AND_RESTART"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,8 +111,10 @@ class MainActivity : ThemedActivity(),
         DataStore.configurationStore.registerChangeListener(this)
         GroupManager.userInterface = GroupInterfaceAdapter(this)
 
-        if (intent?.action == Intent.ACTION_VIEW) {
-            onNewIntent(intent)
+        intent?.let {
+            if (!handleSpecialIntent(it) && it.action == Intent.ACTION_VIEW) {
+                onNewIntent(it)
+            }
         }
 
         refreshNavMenu(DataStore.enableClashAPI)
@@ -161,6 +170,9 @@ class MainActivity : ThemedActivity(),
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        setIntent(intent)
+
+        if (handleSpecialIntent(intent)) return
 
         val uri = intent.data ?: return
 
@@ -171,6 +183,74 @@ class MainActivity : ThemedActivity(),
                 importProfile(uri)
             }
         }
+    }
+
+    private fun handleSpecialIntent(intent: Intent): Boolean {
+        if (intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false
+
+        clearAppCacheAndRestart()
+        return true
+    }
+
+    private fun clearAppCacheAndRestart() {
+        runOnDefaultDispatcher {
+            try {
+                SagerNet.stopService()
+                Thread.sleep(300)
+
+                clearDirFiles(SagerNet.application.cacheDir, skipFiles = setOf("neko.log"))
+
+                val parentDir = SagerNet.application.cacheDir.parentFile
+                val relativeCache = parentDir?.let { File(it, "cache") }
+                if (relativeCache != null && relativeCache.exists() && relativeCache.isDirectory) {
+                    clearDirFiles(relativeCache)
+                }
+
+                onMainDispatcher {
+                    Toast.makeText(
+                        this@MainActivity,
+                        R.string.clear_cache_success,
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    ProcessPhoenix.triggerRebirth(this@MainActivity)
+                }
+            } catch (e: Exception) {
+                onMainDispatcher {
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.clear_cache_failed, e.message),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
+    private fun clearDirFiles(dir: File, skipFiles: Set<String> = emptySet()): Boolean {
+        if (!dir.isDirectory) return false
+
+        val children = dir.list() ?: return true
+        for (child in children) {
+            val childFile = File(dir, child)
+
+            if (child == "neko.log") {
+                try {
+                    childFile.writeText("")
+                    continue
+                } catch (_: Exception) {
+                }
+            }
+
+            if (child in skipFiles) continue
+
+            if (childFile.isDirectory) {
+                clearDirFiles(childFile, skipFiles)
+            } else {
+                childFile.delete()
+            }
+        }
+
+        return true
     }
 
     fun urlTest(): Int {
