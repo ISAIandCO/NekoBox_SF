@@ -66,7 +66,7 @@ class MainActivity : ThemedActivity(),
     lateinit var navigation: NavigationView
 
     companion object {
-        const val ACTION_CLEAR_CACHE_AND_RESTART = "com.nb4a.action.CLEAR_CACHE_AND_RESTART"
+        const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
