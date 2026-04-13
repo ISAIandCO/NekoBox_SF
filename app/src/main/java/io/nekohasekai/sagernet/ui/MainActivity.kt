@@ -53,6 +53,7 @@ import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ui.MessageStore
+import io.nekohasekai.sagernet.ui.publishClearCacheShortcut
 import io.nekohasekai.sagernet.ktx.Logs
 import moe.matsuri.nb4a.utils.Util
 import java.io.File
@@ -67,6 +68,7 @@ class MainActivity : ThemedActivity(),
 
     companion object {
         const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"
+        const val EXTRA_CLEAR_CACHE_AND_RESTART = "extraClearCacheAndRestart"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,6 +120,7 @@ class MainActivity : ThemedActivity(),
         }
 
         refreshNavMenu(DataStore.enableClashAPI)
+        publishClearCacheShortcut(this)
 
         // sdk 33 notification
         if (Build.VERSION.SDK_INT >= 33) {
@@ -186,7 +189,8 @@ class MainActivity : ThemedActivity(),
     }
 
     private fun handleSpecialIntent(intent: Intent): Boolean {
-        if (intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false
+        val fromShortcut = intent.getBooleanExtra(EXTRA_CLEAR_CACHE_AND_RESTART, false)
+        if (!fromShortcut && intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false
 
         clearAppCacheAndRestart()
         return true

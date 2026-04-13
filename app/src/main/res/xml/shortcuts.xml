@@ -31,16 +31,6 @@
             android:targetPackage="com.isaiandco.neko" />
     </shortcut>
     <shortcut
-        android:icon="@drawable/ic_qu_shadowsocks_launcher"
-        android:shortcutId="clear-cache-restart-v3"
-        android:shortcutLongLabel="@string/quick_clear_cache_restart"
-        android:shortcutShortLabel="@string/quick_clear_cache_restart">
-        <intent
-            android:action="com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"
-            android:targetClass="io.nekohasekai.sagernet.ui.MainActivity"
-            android:targetPackage="com.isaiandco.neko" />
-    </shortcut>
-    <shortcut
         android:icon="@drawable/ic_qu_camera_launcher"
         android:shortcutId="scan"
         android:shortcutLongLabel="@string/add_profile_methods_scan_qr_code"

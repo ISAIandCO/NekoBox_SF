@@ -544,6 +544,9 @@
     <string name="move">Move</string>
     <string name="exe_prefer_provider">Plugin Preferred Provider</string>
     <string name="create_shortcut">Create Shortcut</string>
+    <string name="create_clear_cache_shortcut_summary">Create a home screen shortcut for cache clear and restart</string>
+    <string name="shortcut_pin_requested">Shortcut request sent to launcher</string>
+    <string name="shortcut_pin_not_supported">Launcher does not support pinning shortcuts</string>
     <string name="app_tls_version">Subscription Min TLS Version</string>
     <string name="hop_interval">Port Hopping Interval(second)</string>
     <string name="domain_strategy_for_remote">Domain strategy for Remote</string>

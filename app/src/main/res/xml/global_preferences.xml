@@ -303,5 +303,10 @@
             app:key="clearCache"
             app:title="@string/clear_cache"
             app:summary="@string/clear_cache_summary" />
+        <Preference
+            app:icon="@drawable/ic_qu_shadowsocks_launcher"
+            app:key="createClearCacheShortcut"
+            app:title="@string/create_shortcut"
+            app:summary="@string/create_clear_cache_shortcut_summary" />
     </PreferenceCategory>
 </PreferenceScreen>

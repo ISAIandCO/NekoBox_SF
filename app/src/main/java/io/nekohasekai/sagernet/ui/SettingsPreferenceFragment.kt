@@ -16,6 +16,7 @@ import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.utils.Theme
+import io.nekohasekai.sagernet.ui.requestPinClearCacheShortcut
 import moe.matsuri.nb4a.ui.*
 import android.widget.Toast
 import java.io.File
@@ -222,6 +223,17 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
                 }
                 setNegativeButton(android.R.string.cancel, null)
             }.show()
+            true
+        }
+
+        val createClearCacheShortcut = findPreference<Preference>("createClearCacheShortcut")!!
+        createClearCacheShortcut.setOnPreferenceClickListener {
+            val pinned = requestPinClearCacheShortcut(requireContext())
+            Toast.makeText(
+                requireContext(),
+                if (pinned) R.string.shortcut_pin_requested else R.string.shortcut_pin_not_supported,
+                Toast.LENGTH_SHORT
+            ).show()
             true
         }
     }
