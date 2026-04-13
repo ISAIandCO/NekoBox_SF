@@ -224,6 +224,14 @@ class BaseService {
 
         fun killProcesses() {
             data.proxy?.close()
+
+            runCatching {
+                Libcore.resetAllConnections(true)
+            }
+            runCatching {
+                Libcore.forceGc()
+            }
+
             wakeLock?.apply {
                 release()
                 wakeLock = null
