@@ -396,6 +396,7 @@
 <string name="service_subscription">Служба обновления подписки</string>
 <string name="service_vpn">VPN-сервис</string>
 <string name="set_panel_url">Установить URL панель</string>
+<string name="invalid_panel_url">Недопустимый URL панели. Используйте HTTPS или HTTP только для localhost.</string>
 <string name="settings">Настройки</string>
 <string name="shadowsocks_plugin_simple_obfs">Simple Obfs (плагин Shadowsocks для Android)</string>
 <string name="shadowsocks_plugin_v2ray">V2Ray (плагин Shadowsocks для Android)</string>

@@ -166,7 +166,7 @@ fun buildConfig(
             experimental = ExperimentalOptions().apply {
                 cache_file = CacheFile().apply {
                     enabled = true
-                    path = "../cache/cache.db"
+                    path = "../cache/cache_${proxy.id.coerceAtLeast(0)}.db"
                     // if (DataStore.enableClashAPI) {
                     store_fakeip = true
                     // }
