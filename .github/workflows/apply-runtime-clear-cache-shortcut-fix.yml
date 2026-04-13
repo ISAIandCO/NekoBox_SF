@@ -1,0 +1,147 @@
+name: Apply runtime clear-cache shortcut fix
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-runtime-clear-cache-shortcut-fix.yml
+      - app/src/main/java/io/nekohasekai/sagernet/ui/ClearCacheShortcutHelper.kt
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Rewrite files for runtime pinned shortcut
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def read(path: str) -> str:
+              return Path(path).read_text(encoding='utf-8')
+
+          def write(path: str, text: str) -> None:
+              Path(path).write_text(text, encoding='utf-8')
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              if new in text:
+                  return text
+              if old not in text:
+                  raise SystemExit(f'Missing block for {label}')
+              return text.replace(old, new, 1)
+
+          # MainActivity.kt
+          path = 'app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt'
+          text = read(path)
+          if 'import io.nekohasekai.sagernet.ui.MessageStore\n' in text and 'import io.nekohasekai.sagernet.ui.publishClearCacheShortcut\n' not in text:
+              text = text.replace(
+                  'import io.nekohasekai.sagernet.ui.MessageStore\n',
+                  'import io.nekohasekai.sagernet.ui.MessageStore\nimport io.nekohasekai.sagernet.ui.publishClearCacheShortcut\n',
+                  1,
+              )
+          text = text.replace(
+              'const val ACTION_CLEAR_CACHE_AND_RESTART = "com.nb4a.action.CLEAR_CACHE_AND_RESTART"',
+              'const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"'
+          )
+          if 'const val EXTRA_CLEAR_CACHE_AND_RESTART = "extraClearCacheAndRestart"' not in text:
+              text = text.replace(
+                  '    companion object {\n        const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"\n    }\n',
+                  '    companion object {\n        const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"\n        const val EXTRA_CLEAR_CACHE_AND_RESTART = "extraClearCacheAndRestart"\n    }\n',
+                  1,
+              )
+          text = text.replace(
+              '        refreshNavMenu(DataStore.enableClashAPI)\n',
+              '        refreshNavMenu(DataStore.enableClashAPI)\n        publishClearCacheShortcut(this)\n',
+          ) if 'publishClearCacheShortcut(this)' not in text else text
+          old_handle = '''    private fun handleSpecialIntent(intent: Intent): Boolean {\n        if (intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false\n\n        clearAppCacheAndRestart()\n        return true\n    }\n'''
+          new_handle = '''    private fun handleSpecialIntent(intent: Intent): Boolean {\n        val fromShortcut = intent.getBooleanExtra(EXTRA_CLEAR_CACHE_AND_RESTART, false)\n        if (!fromShortcut && intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false\n\n        clearAppCacheAndRestart()\n        return true\n    }\n'''
+          text = replace_once(text, old_handle, new_handle, 'handleSpecialIntent')
+          write(path, text)
+
+          # SettingsPreferenceFragment.kt
+          path = 'app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt'
+          text = read(path)
+          if 'import io.nekohasekai.sagernet.ui.requestPinClearCacheShortcut\n' not in text:
+              text = text.replace(
+                  'import io.nekohasekai.sagernet.utils.Theme\n',
+                  'import io.nekohasekai.sagernet.utils.Theme\nimport io.nekohasekai.sagernet.ui.requestPinClearCacheShortcut\n',
+                  1,
+              )
+          insert_after = '''        val clearCache = findPreference<Preference>(Key.CLEAR_CACHE)!!\n        clearCache.setOnPreferenceClickListener {\n            MaterialAlertDialogBuilder(requireContext()).apply {\n                setTitle(R.string.clear_cache)\n                setMessage(R.string.clear_cache_confirm)\n                setPositiveButton(android.R.string.ok) { _, _ ->\n                    clearAppCache()\n                }\n                setNegativeButton(android.R.string.cancel, null)\n            }.show()\n            true\n        }\n'''
+          add_block = '''\n        val createClearCacheShortcut = findPreference<Preference>("createClearCacheShortcut")!!\n        createClearCacheShortcut.setOnPreferenceClickListener {\n            val pinned = requestPinClearCacheShortcut(requireContext())\n            Toast.makeText(\n                requireContext(),\n                if (pinned) R.string.shortcut_pin_requested else R.string.shortcut_pin_not_supported,\n                Toast.LENGTH_SHORT\n            ).show()\n            true\n        }\n'''
+          if 'findPreference<Preference>("createClearCacheShortcut")' not in text:
+              text = replace_once(text, insert_after, insert_after + add_block, 'createClearCacheShortcut hook')
+          write(path, text)
+
+          # global_preferences.xml
+          path = 'app/src/main/res/xml/global_preferences.xml'
+          text = read(path)
+          new_pref = '''        <Preference\n            app:icon="@drawable/ic_qu_shadowsocks_launcher"\n            app:key="createClearCacheShortcut"\n            app:title="@string/create_shortcut"\n            app:summary="@string/create_clear_cache_shortcut_summary" />\n'''
+          anchor = '''        <Preference\n            app:icon="@drawable/ic_baseline_delete_24"\n            app:key="clearCache"\n            app:title="@string/clear_cache"\n            app:summary="@string/clear_cache_summary" />\n'''
+          if 'app:key="createClearCacheShortcut"' not in text:
+              text = replace_once(text, anchor, anchor + new_pref, 'global_preferences createClearCacheShortcut')
+          write(path, text)
+
+          # strings.xml
+          path = 'app/src/main/res/values/strings.xml'
+          text = read(path)
+          anchor = '    <string name="create_shortcut">Create Shortcut</string>\n'
+          if 'name="create_clear_cache_shortcut_summary"' not in text:
+              text = replace_once(
+                  text,
+                  anchor,
+                  anchor + '    <string name="create_clear_cache_shortcut_summary">Create a home screen shortcut for cache clear and restart</string>\n' +
+                           '    <string name="shortcut_pin_requested">Shortcut request sent to launcher</string>\n' +
+                           '    <string name="shortcut_pin_not_supported">Launcher does not support pinning shortcuts</string>\n',
+                  'strings for runtime shortcut'
+              )
+          write(path, text)
+
+          # shortcuts.xml: remove static clear-cache shortcut to avoid stale launcher copy.
+          path = 'app/src/main/res/xml/shortcuts.xml'
+          text = read(path)
+          block = '''    <shortcut\n        android:icon="@drawable/ic_qu_shadowsocks_launcher"\n        android:shortcutId="clear-cache-restart-v3"\n        android:shortcutLongLabel="@string/quick_clear_cache_restart"\n        android:shortcutShortLabel="@string/quick_clear_cache_restart">\n        <intent\n            android:action="com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"\n            android:targetClass="io.nekohasekai.sagernet.ui.MainActivity"\n            android:targetPackage="com.isaiandco.neko" />\n    </shortcut>\n'''
+          text = text.replace(block, '')
+          old_block = '''    <shortcut\n        android:icon="@drawable/ic_qu_shadowsocks_launcher"\n        android:shortcutId="clear-cache-restart"\n        android:shortcutLongLabel="@string/quick_clear_cache_restart"\n        android:shortcutShortLabel="@string/quick_clear_cache_restart">\n        <intent\n            android:action="com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"\n            android:targetClass="io.nekohasekai.sagernet.ui.MainActivity"\n            android:targetPackage="com.isaiandco.neko" />\n    </shortcut>\n'''
+          text = text.replace(old_block, '')
+          older_block = '''    <shortcut\n        android:icon="@drawable/ic_qu_shadowsocks_launcher"\n        android:shortcutId="clear-cache-restart"\n        android:shortcutLongLabel="@string/quick_clear_cache_restart"\n        android:shortcutShortLabel="@string/quick_clear_cache_restart">\n        <intent\n            android:action="android.intent.action.MAIN"\n            android:targetClass="io.nekohasekai.sagernet.ui.QuickClearCacheShortcut" />\n    </shortcut>\n'''
+          text = text.replace(older_block, '')
+          write(path, text)
+          PY
+
+      - name: Show diff
+        run: |
+          git diff -- \
+            app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt \
+            app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt \
+            app/src/main/res/xml/global_preferences.xml \
+            app/src/main/res/values/strings.xml \
+            app/src/main/res/xml/shortcuts.xml
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            app/src/main/java/io/nekohasekai/sagernet/ui/MainActivity.kt \
+            app/src/main/java/io/nekohasekai/sagernet/ui/SettingsPreferenceFragment.kt \
+            app/src/main/res/xml/global_preferences.xml \
+            app/src/main/res/values/strings.xml \
+            app/src/main/res/xml/shortcuts.xml
+          git commit -m "Switch clear-cache shortcut to runtime pinned shortcut"
+          git push
