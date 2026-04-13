@@ -11,20 +11,20 @@ import io.nekohasekai.sagernet.fmt.ConfigBuildResult.IndexEntity
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.hysteria.buildSingBoxOutboundHysteriaBean
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
+import io.nekohasekai.sagernet.fmt.juicity.JuicityBean
+import io.nekohasekai.sagernet.fmt.juicity.buildSingBoxOutboundJuicityBean
 import io.nekohasekai.sagernet.fmt.shadowsocks.ShadowsocksBean
 import io.nekohasekai.sagernet.fmt.shadowsocks.buildSingBoxOutboundShadowsocksBean
+import io.nekohasekai.sagernet.fmt.shadowsocksr.ShadowsocksRBean
+import io.nekohasekai.sagernet.fmt.shadowsocksr.buildSingBoxOutboundShadowsocksRBean
 import io.nekohasekai.sagernet.fmt.socks.SOCKSBean
 import io.nekohasekai.sagernet.fmt.socks.buildSingBoxOutboundSocksBean
 import io.nekohasekai.sagernet.fmt.ssh.SSHBean
 import io.nekohasekai.sagernet.fmt.ssh.buildSingBoxOutboundSSHBean
 import io.nekohasekai.sagernet.fmt.tuic.TuicBean
 import io.nekohasekai.sagernet.fmt.tuic.buildSingBoxOutboundTuicBean
-import io.nekohasekai.sagernet.fmt.juicity.JuicityBean
-import io.nekohasekai.sagernet.fmt.juicity.buildSingBoxOutboundJuicityBean
 import io.nekohasekai.sagernet.fmt.v2ray.StandardV2RayBean
 import io.nekohasekai.sagernet.fmt.v2ray.buildSingBoxOutboundStandardV2RayBean
-import io.nekohasekai.sagernet.fmt.shadowsocksr.ShadowsocksRBean
-import io.nekohasekai.sagernet.fmt.shadowsocksr.buildSingBoxOutboundShadowsocksRBean
 import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 import io.nekohasekai.sagernet.fmt.wireguard.buildSingBoxOutboundWireguardBean
 import io.nekohasekai.sagernet.ktx.isIpAddress
@@ -197,9 +197,7 @@ fun buildConfig(
         }
 
         fun autoDnsDomainStrategy(s: String): String? {
-            if (s.isNotEmpty()) {
-                return s
-            }
+            if (s.isNotEmpty()) return s
             return when (ipv6Mode) {
                 IPv6Mode.DISABLE -> "ipv4_only"
                 IPv6Mode.ENABLE -> "prefer_ipv4"
@@ -243,6 +241,7 @@ fun buildConfig(
                     }
                 }
             })
+
             if (needMixedInbound) inbounds.add(Inbound_MixedOptions().apply {
                 type = "mixed"
                 tag = TAG_MIXED
@@ -251,6 +250,12 @@ fun buildConfig(
                 domain_strategy = genDomainStrategy(DataStore.resolveDestination)
                 sniff = needSniff
                 sniff_override_destination = needSniffOverride
+                users = listOf(
+                    User().apply {
+                        username = DataStore.mixedUsername
+                        password = DataStore.mixedPassword
+                    }
+                )
             })
         }
 
@@ -265,9 +270,7 @@ fun buildConfig(
         }
 
         @Suppress("UNCHECKED_CAST")
-        fun buildChain(
-            chainId: Long, entity: ProxyEntity
-        ): String {
+        fun buildChain(chainId: Long, entity: ProxyEntity): String {
             val profileList = entity.resolveChain()
             val chainTrafficSet = HashSet<ProxyEntity>().apply {
                 plusAssign(profileList)
@@ -292,7 +295,6 @@ fun buildConfig(
                 val bean = proxyEntity.requireBean()
 
                 var tagOut = "$chainTag-${proxyEntity.id}"
-
                 var needGlobal = false
 
                 if (index == profileList.lastIndex) {
@@ -336,42 +338,18 @@ fun buildConfig(
                     }
                 } else {
                     currentOutbound = when (bean) {
-                        is ConfigBean ->
-                            CustomSingBoxOption(bean.config) as SingBoxOption
-
-                        is ShadowTLSBean ->
-                            buildSingBoxOutboundShadowTLSBean(bean)
-
-                        is StandardV2RayBean ->
-                            buildSingBoxOutboundStandardV2RayBean(bean)
-
-                        is HysteriaBean ->
-                            buildSingBoxOutboundHysteriaBean(bean)
-
-                        is TuicBean ->
-                            buildSingBoxOutboundTuicBean(bean)
-
-                        is JuicityBean ->
-                            buildSingBoxOutboundJuicityBean(bean)
-
-                        is SOCKSBean ->
-                            buildSingBoxOutboundSocksBean(bean)
-
-                        is ShadowsocksBean ->
-                            buildSingBoxOutboundShadowsocksBean(bean)
-
-                        is ShadowsocksRBean ->
-                            buildSingBoxOutboundShadowsocksRBean(bean)
-
-                        is WireGuardBean ->
-                            buildSingBoxOutboundWireguardBean(bean)
-
-                        is SSHBean ->
-                            buildSingBoxOutboundSSHBean(bean)
-
-                        is AnyTLSBean ->
-                            buildSingBoxOutboundAnyTLSBean(bean)
-
+                        is ConfigBean -> CustomSingBoxOption(bean.config) as SingBoxOption
+                        is ShadowTLSBean -> buildSingBoxOutboundShadowTLSBean(bean)
+                        is StandardV2RayBean -> buildSingBoxOutboundStandardV2RayBean(bean)
+                        is HysteriaBean -> buildSingBoxOutboundHysteriaBean(bean)
+                        is TuicBean -> buildSingBoxOutboundTuicBean(bean)
+                        is JuicityBean -> buildSingBoxOutboundJuicityBean(bean)
+                        is SOCKSBean -> buildSingBoxOutboundSocksBean(bean)
+                        is ShadowsocksBean -> buildSingBoxOutboundShadowsocksBean(bean)
+                        is ShadowsocksRBean -> buildSingBoxOutboundShadowsocksRBean(bean)
+                        is WireGuardBean -> buildSingBoxOutboundWireguardBean(bean)
+                        is SSHBean -> buildSingBoxOutboundSSHBean(bean)
+                        is AnyTLSBean -> buildSingBoxOutboundAnyTLSBean(bean)
                         else -> throw IllegalStateException("can't reach")
                     }
 
@@ -410,7 +388,6 @@ fun buildConfig(
                         if (forTest) "" else defaultServerDomainStrategy
 
                     _hack_config_map["tag"] = tagOut
-
                     _hack_custom_config = bean.customOutboundJson
                 }
 
@@ -608,7 +585,6 @@ fun buildConfig(
                         val rulesetUrls = rule.ruleset.listByLineOrComma()
                         rulesetUrls.forEach { origUrl ->
                             val (url, isIPRuleset) = processRulesetUrl(origUrl)
-
                             val tag = generateRemoteRuleSet(url, ruleSets, DataStore.rulesUpdateInterval)
 
                             rulesetTags.add(Pair(tag, isIPRuleset))
@@ -676,10 +652,12 @@ fun buildConfig(
                         }
 
                         0L -> {
-                            if (useFakeDns) userDNSRuleList += makeDnsRuleObj().apply {
-                                server = "dns-fake"
-                                inbound = listOf("tun-in")
-                                query_type = listOf("A", "AAAA")
+                            if (useFakeDns) {
+                                userDNSRuleList += makeDnsRuleObj().apply {
+                                    server = "dns-fake"
+                                    inbound = listOf("tun-in")
+                                    query_type = listOf("A", "AAAA")
+                                }
                             } else {
                                 userDNSRuleList += makeDnsRuleObj().apply {
                                     server = "dns-remote"
@@ -764,10 +742,12 @@ fun buildConfig(
             route.rule_set = route.rule_set.distinctBy { it.tag }
         }
 
-        for (freedom in arrayOf(TAG_DIRECT, TAG_BYPASS)) outbounds.add(Outbound().apply {
-            tag = freedom
-            type = "direct"
-        })
+        for (freedom in arrayOf(TAG_DIRECT, TAG_BYPASS)) {
+            outbounds.add(Outbound().apply {
+                tag = freedom
+                type = "direct"
+            })
+        }
 
         if (DataStore.enableTLSFragment) {
             val fragmentOutbound = Outbound().apply {
@@ -831,12 +811,14 @@ fun buildConfig(
         }
 
         remoteDns.firstOrNull().let {
-            if (!forTest) dns.servers.add(DNSServerOptions().apply {
-                address = it ?: throw Exception("No remote DNS, check your settings!")
-                tag = "dns-remote"
-                address_resolver = "dns-direct"
-                strategy = autoDnsDomainStrategy(SingBoxOptionsUtil.domainStrategy(tag))
-            })
+            if (!forTest) {
+                dns.servers.add(DNSServerOptions().apply {
+                    address = it ?: throw Exception("No remote DNS, check your settings!")
+                    tag = "dns-remote"
+                    address_resolver = "dns-direct"
+                    strategy = autoDnsDomainStrategy(SingBoxOptionsUtil.domainStrategy(tag))
+                })
+            }
         }
 
         dns.final_ = if (forTest) "dns-direct" else "dns-remote"
