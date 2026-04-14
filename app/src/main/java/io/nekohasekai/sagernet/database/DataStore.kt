@@ -131,6 +131,14 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         get() = getLocalPort(Key.MIXED_PORT, 2080)
         set(value) = saveLocalPort(Key.MIXED_PORT, value)
 
+    var socksPort: Int
+        get() = configurationStore.getString(Key.SOCKS_PORT)?.let { parsePort(it, mixedPort) } ?: mixedPort
+        set(value) = saveLocalPort(Key.SOCKS_PORT, value)
+
+    var httpPort: Int
+        get() = configurationStore.getString(Key.HTTP_PORT)?.let { parsePort(it, socksPort + 1) } ?: (socksPort + 1)
+        set(value) = saveLocalPort(Key.HTTP_PORT, value)
+
     var mixedUsername by configurationStore.string(Key.MIXED_USERNAME) { "User" }
     var mixedPassword by configurationStore.string(Key.MIXED_PASSWORD) {
         Util.generateCryptoSecurePassword()
@@ -139,6 +147,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     fun initGlobal() {
         if (configurationStore.getString(Key.MIXED_PORT) == null) {
             mixedPort = mixedPort
+        }
+        if (configurationStore.getString(Key.SOCKS_PORT) == null) {
+            socksPort = mixedPort
+        }
+        if (configurationStore.getString(Key.HTTP_PORT) == null) {
+            httpPort = socksPort + 1
         }
         if (configurationStore.getString(Key.MIXED_USERNAME) == null) {
             mixedUsername = "User"

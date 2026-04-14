@@ -44,6 +44,8 @@ import moe.matsuri.nb4a.utils.listByLineOrComma
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 const val TAG_MIXED = "mixed-in"
+const val TAG_SOCKS_IN = "socks-in"
+const val TAG_HTTP_IN = "http-in"
 
 const val TAG_PROXY = "proxy"
 const val TAG_DIRECT = "direct"
@@ -86,7 +88,9 @@ fun buildConfig(
     val trafficMap = HashMap<String, List<ProxyEntity>>()
     val tagMap = HashMap<Long, String>()
     val globalOutbounds = HashMap<Long, String>()
-    val readableNames = mutableSetOf(TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_PROXY)
+    val readableNames = mutableSetOf(
+        TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_SOCKS_IN, TAG_HTTP_IN, TAG_PROXY
+    )
     val group = SagerDatabase.groupDao.getById(proxy.groupId)
 
     fun ProxyEntity.resolveChainInternal(): MutableList<ProxyEntity> {
@@ -139,7 +143,7 @@ fun buildConfig(
     val bypassDNSBeans = hashSetOf<AbstractBean>()
     val isVPN = DataStore.serviceMode == Key.MODE_VPN
     val bind = if (!forTest && DataStore.allowAccess) "0.0.0.0" else LOCALHOST
-    val needMixedInbound = !isVPN || DataStore.allowAccess || DataStore.appendHttpProxy
+    val needLocalProxyInbounds = !isVPN || DataStore.allowAccess || DataStore.appendHttpProxy
     val remoteDns = DataStore.remoteDns.split("\n")
         .mapNotNull { dns -> dns.trim().takeIf { it.isNotBlank() && !it.startsWith("#") } }
     val directDNS = DataStore.directDns.split("\n")
@@ -242,21 +246,35 @@ fun buildConfig(
                 }
             })
 
-            if (needMixedInbound) inbounds.add(Inbound_MixedOptions().apply {
-                type = "mixed"
-                tag = TAG_MIXED
-                listen = bind
-                listen_port = DataStore.mixedPort
-                domain_strategy = genDomainStrategy(DataStore.resolveDestination)
-                sniff = needSniff
-                sniff_override_destination = needSniffOverride
-                users = listOf(
-                    User().apply {
-                        username = DataStore.mixedUsername
-                        password = DataStore.mixedPassword
-                    }
-                )
-            })
+            fun buildInboundUsers(): List<User> = listOf(
+                User().apply {
+                    username = DataStore.mixedUsername
+                    password = DataStore.mixedPassword
+                }
+            )
+
+            if (needLocalProxyInbounds) {
+                inbounds.add(Inbound_SocksOptions().apply {
+                    type = "socks"
+                    tag = TAG_SOCKS_IN
+                    listen = bind
+                    listen_port = DataStore.socksPort
+                    domain_strategy = genDomainStrategy(DataStore.resolveDestination)
+                    sniff = needSniff
+                    sniff_override_destination = needSniffOverride
+                    users = buildInboundUsers()
+                })
+                inbounds.add(Inbound_HTTPOptions().apply {
+                    type = "http"
+                    tag = TAG_HTTP_IN
+                    listen = bind
+                    listen_port = DataStore.httpPort
+                    domain_strategy = genDomainStrategy(DataStore.resolveDestination)
+                    sniff = needSniff
+                    sniff_override_destination = needSniffOverride
+                    users = buildInboundUsers()
+                })
+            }
         }
 
         outbounds = mutableListOf()
@@ -283,7 +301,6 @@ fun buildConfig(
             var pastEntity: ProxyEntity? = null
             val externalChainMap = LinkedHashMap<Int, ProxyEntity>()
             externalIndexMap.add(IndexEntity(externalChainMap))
-            val chainOutbounds = ArrayList<SingBoxOption>()
 
             var chainTagOut = ""
             val chainTag = "c-$chainId"
@@ -441,7 +458,6 @@ fun buildConfig(
                 }
 
                 outbounds.add(currentOutbound)
-                chainOutbounds.add(currentOutbound)
                 pastOutbound = currentOutbound
                 pastEntity = proxyEntity
             }
@@ -471,6 +487,7 @@ fun buildConfig(
         }
 
         val mainProxyTag = (if (buildSelector) TAG_PROXY else tagMap[proxy.id]) ?: TAG_PROXY
+        route.final_ = mainProxyTag
 
         fun buildPerAppTunGuardRules(): List<Rule_DefaultOptions> {
             if (forTest || !isVPN || DataStore.globalMode || !DataStore.proxyApps) {
@@ -486,31 +503,29 @@ fun buildConfig(
                 .mapNotNull { pkg -> PackageCache[pkg]?.takeIf { uid -> uid >= 1000 } }
                 .toCollection(linkedSetOf())
 
-            if (selectedUids.isEmpty() && DataStore.bypass) {
-                return emptyList()
-            }
-
             return buildList {
                 if (DataStore.bypass) {
                     if (selectedUids.isNotEmpty()) {
                         add(Rule_DefaultOptions().apply {
                             inbound = listOf("tun-in")
                             user_id = selectedUids.toList()
-                            outbound = TAG_BYPASS
+                            action = "reject"
                         })
                     }
                 } else {
-                    if (selectedUids.isNotEmpty()) {
+                    if (selectedUids.isEmpty()) {
+                        add(Rule_DefaultOptions().apply {
+                            inbound = listOf("tun-in")
+                            action = "reject"
+                        })
+                    } else {
                         add(Rule_DefaultOptions().apply {
                             inbound = listOf("tun-in")
                             user_id = selectedUids.toList()
-                            outbound = mainProxyTag
+                            invert = true
+                            action = "reject"
                         })
                     }
-                    add(Rule_DefaultOptions().apply {
-                        inbound = listOf("tun-in")
-                        action = "reject"
-                    })
                 }
             }
         }
@@ -538,14 +553,16 @@ fun buildConfig(
                 outbound = mainProxyTag
             })
 
-            if (needMixedInbound) {
+            if (needLocalProxyInbounds) {
                 route.rules.add(Rule_DefaultOptions().apply {
-                    inbound = listOf(TAG_MIXED)
+                    inbound = listOf(TAG_SOCKS_IN)
+                    outbound = mainProxyTag
+                })
+                route.rules.add(Rule_DefaultOptions().apply {
+                    inbound = listOf(TAG_HTTP_IN)
                     outbound = mainProxyTag
                 })
             }
-
-            route.final_ = mainProxyTag
         } else {
             for (rule in extraRules) {
                 if (rule.packages.isNotEmpty()) {

@@ -63,7 +63,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
+        val socksPort = findPreference<EditTextPreference>(Key.SOCKS_PORT)!!
+        val httpPort = findPreference<EditTextPreference>(Key.HTTP_PORT)!!
         val mixedUsername = findPreference<EditTextPreference>(Key.MIXED_USERNAME)!!
         val mixedPassword = findPreference<EditTextPreference>(Key.MIXED_PASSWORD)!!
         val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
@@ -116,7 +117,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        mixedPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        socksPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        httpPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
         mixedPassword.setOnBindEditTextListener { editText ->
             editText.inputType =
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
@@ -172,7 +174,8 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        mixedPort.onPreferenceChangeListener = reloadListener
+        socksPort.onPreferenceChangeListener = reloadListener
+        httpPort.onPreferenceChangeListener = reloadListener
         mixedUsername.onPreferenceChangeListener = reloadListener
         mixedPassword.onPreferenceChangeListener = reloadListener
         appendHttpProxy.onPreferenceChangeListener = reloadListener
