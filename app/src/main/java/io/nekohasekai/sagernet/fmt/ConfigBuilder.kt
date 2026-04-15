@@ -244,6 +244,22 @@ fun buildConfig(
                         inet6_address = listOf(VpnService.PRIVATE_VLAN6_CLIENT + "/126")
                     }
                 }
+                if (DataStore.proxyApps) {
+                    val selectedPackages = DataStore.individual
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toMutableList()
+                    // Do not use include_package in selected-only mode on Android.
+                    // sing-box may turn it into an internal user_id pre-match reject rule,
+                    // which can block system private-DNS checks.
+                    include_package = null
+                    if (DataStore.bypass) {
+                        exclude_package = selectedPackages
+                    } else {
+                        exclude_package = null
+                    }
+                }
             })
             if (needMixedInbound) inbounds.add(Inbound_MixedOptions().apply {
                 type = "mixed"
