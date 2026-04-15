@@ -52,6 +52,14 @@ const val TAG_BLOCK = "block"
 const val TAG_FRAGMENT = "fragment"
 
 const val LOCALHOST = "127.0.0.1"
+private val ANDROID_DNS_PACKAGES = listOf(
+    "android",
+    "com.android.resolv",
+    "com.google.android.resolv",
+    "com.android.networkstack",
+    "com.google.android.networkstack",
+    "com.android.dnsresolver"
+)
 
 class ConfigBuildResult(
     var config: String,
@@ -242,6 +250,27 @@ fun buildConfig(
                     else -> {
                         inet4_address = listOf(VpnService.PRIVATE_VLAN4_CLIENT + "/28")
                         inet6_address = listOf(VpnService.PRIVATE_VLAN6_CLIENT + "/126")
+                    }
+                }
+                if (DataStore.proxyApps) {
+                    val selectedPackages = DataStore.individual
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toMutableList()
+                    if (DataStore.bypass) {
+                        exclude_package = selectedPackages
+                    } else {
+                        // Keep app process and Android DNS resolver in the allowed set.
+                        if (!selectedPackages.contains(BuildConfig.APPLICATION_ID)) {
+                            selectedPackages.add(BuildConfig.APPLICATION_ID)
+                        }
+                        ANDROID_DNS_PACKAGES.forEach {
+                            if (!selectedPackages.contains(it)) {
+                                selectedPackages.add(it)
+                            }
+                        }
+                        include_package = selectedPackages
                     }
                 }
             })
