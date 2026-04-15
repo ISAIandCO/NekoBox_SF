@@ -244,6 +244,25 @@ fun buildConfig(
                         inet6_address = listOf(VpnService.PRIVATE_VLAN6_CLIENT + "/126")
                     }
                 }
+                if (DataStore.proxyApps) {
+                    val selectedPackages = DataStore.individual
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toMutableList()
+                    if (DataStore.bypass) {
+                        exclude_package = selectedPackages
+                    } else {
+                        // Keep app process and Android DNS resolver in the allowed set.
+                        if (!selectedPackages.contains(BuildConfig.APPLICATION_ID)) {
+                            selectedPackages.add(BuildConfig.APPLICATION_ID)
+                        }
+                        if (!selectedPackages.contains("android")) {
+                            selectedPackages.add("android")
+                        }
+                        include_package = selectedPackages
+                    }
+                }
             })
 
             fun buildInboundUsers(): List<User> = listOf(

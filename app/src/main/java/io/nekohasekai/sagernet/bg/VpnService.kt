@@ -168,6 +168,9 @@ class VpnService : BaseVpnService(),
                 // Allow Matsuri itself using VPN.
                 remove(packageName)
                 if (!bypass) add(packageName)
+                // Android system DNS resolver traffic is owned by the "android" package.
+                // Keep it inside the VPN in allow-list mode so selected apps can still resolve domains.
+                if (!bypass) add("android")
             }.forEach {
                 try {
                     if (bypass) {
