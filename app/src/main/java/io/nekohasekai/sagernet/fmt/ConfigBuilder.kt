@@ -60,7 +60,11 @@ private val ANDROID_DNS_PACKAGES = listOf(
     "com.google.android.resolv",
     "com.android.networkstack",
     "com.google.android.networkstack",
-    "com.android.dnsresolver"
+    "com.android.dnsresolver",
+    "com.android.networkstack.tethering",
+    "com.google.android.networkstack.tethering",
+    "com.android.tethering",
+    "com.google.android.tethering"
 )
 
 class ConfigBuildResult(

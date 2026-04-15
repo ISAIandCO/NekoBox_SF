@@ -35,7 +35,11 @@ class VpnService : BaseVpnService(),
             "com.google.android.resolv",
             "com.android.networkstack",
             "com.google.android.networkstack",
-            "com.android.dnsresolver"
+            "com.android.dnsresolver",
+            "com.android.networkstack.tethering",
+            "com.google.android.networkstack.tethering",
+            "com.android.tethering",
+            "com.google.android.tethering"
         )
 
     }
