@@ -28,6 +28,14 @@ class VpnService : BaseVpnService(),
         const val FAKEDNS_VLAN4_CLIENT = "198.18.0.0"
         const val PRIVATE_VLAN6_CLIENT = "fdfe:dcba:9876::1"
         const val PRIVATE_VLAN6_ROUTER = "fdfe:dcba:9876::2"
+        private val ANDROID_DNS_PACKAGES = listOf(
+            "android",
+            "com.android.resolv",
+            "com.google.android.resolv",
+            "com.android.networkstack",
+            "com.google.android.networkstack",
+            "com.android.dnsresolver"
+        )
 
     }
 
@@ -168,6 +176,8 @@ class VpnService : BaseVpnService(),
                 // Allow Matsuri itself using VPN.
                 remove(packageName)
                 if (!bypass) add(packageName)
+                // Keep Android system DNS resolver traffic inside VPN in allow-list mode.
+                if (!bypass) addAll(ANDROID_DNS_PACKAGES)
             }.forEach {
                 try {
                     if (bypass) {
