@@ -27,16 +27,27 @@ class BootReceiver : BroadcastReceiver() {
             SubscriptionUpdater.reconfigureUpdater()
         }
 
-        if (!DataStore.persistAcrossReboot) {   // sanity check
+        if (!DataStore.persistAcrossReboot) {
             enabled = false
             return
         }
 
         val doStart = when (intent.action) {
-            Intent.ACTION_LOCKED_BOOT_COMPLETED -> false // DataStore.directBootAware
+            Intent.ACTION_LOCKED_BOOT_COMPLETED -> false
             else -> Build.VERSION.SDK_INT < 24 || SagerNet.user.isUserUnlocked
         } && DataStore.selectedProxy > 0
 
-        if (doStart) SagerNet.startService()
+        if (!doStart) return
+
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            runOnDefaultDispatcher {
+                SagerNet.stopService()
+                Thread.sleep(750)
+                SagerNet.startService()
+            }
+            return
+        }
+
+        SagerNet.startService()
     }
 }
