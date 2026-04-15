@@ -54,6 +54,14 @@ const val TAG_BLOCK = "block"
 const val TAG_FRAGMENT = "fragment"
 
 const val LOCALHOST = "127.0.0.1"
+private val ANDROID_DNS_PACKAGES = listOf(
+    "android",
+    "com.android.resolv",
+    "com.google.android.resolv",
+    "com.android.networkstack",
+    "com.google.android.networkstack",
+    "com.android.dnsresolver"
+)
 
 class ConfigBuildResult(
     var config: String,
@@ -250,17 +258,29 @@ fun buildConfig(
                         .map { it.trim() }
                         .filter { it.isNotEmpty() }
                         .toMutableList()
+                    PackageCache.awaitLoadSync()
+                    val selectedUids = selectedPackages.mapNotNullTo(linkedSetOf()) { PackageCache[it] }
                     if (DataStore.bypass) {
                         exclude_package = selectedPackages
+                        if (selectedUids.isNotEmpty()) {
+                            exclude_uid = selectedUids.toList()
+                        }
                     } else {
                         // Keep app process and Android DNS resolver in the allowed set.
                         if (!selectedPackages.contains(BuildConfig.APPLICATION_ID)) {
                             selectedPackages.add(BuildConfig.APPLICATION_ID)
                         }
-                        if (!selectedPackages.contains("android")) {
-                            selectedPackages.add("android")
+                        ANDROID_DNS_PACKAGES.forEach {
+                            if (!selectedPackages.contains(it)) {
+                                selectedPackages.add(it)
+                            }
                         }
+                        val includeUids = selectedUids.toMutableSet()
+                        PackageCache[BuildConfig.APPLICATION_ID]?.let { includeUids.add(it) }
+                        includeUids.add(1000) // AID_SYSTEM
+                        includeUids.add(1051) // AID_DNS
                         include_package = selectedPackages
+                        include_uid = includeUids.toList()
                     }
                 }
             })
