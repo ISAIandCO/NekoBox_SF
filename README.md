@@ -208,7 +208,7 @@ https://matsuridayo.github.io
    - [x] "Обход LAN в ядре"
    - [x] "Определить адрес назначения"
    - [x] "RuleSet Update Interval" > 72h
-   - [x] Удаленный\Прямой DNS (указать DoH? например https://dns.adguard-dns.com/dns-query)
+   - [x] Удаленный\Прямой DNS (указать DoH, например https://dns.adguard-dns.com/dns-query)
    - [x] "Правило домена..." - prefer_ipv4 (ipv6 хорошо, но не в России - не распространено)
    - [ ] "Включить маршрутизацию DNS"
    - [x] "Включить FakeDNS"
