@@ -20,27 +20,23 @@ import io.nekohasekai.sagernet.ktx.string
 import io.nekohasekai.sagernet.ktx.stringToInt
 import io.nekohasekai.sagernet.ktx.stringToIntIfExists
 import moe.matsuri.nb4a.TempDatabase
+import moe.matsuri.nb4a.utils.Util
 
 object DataStore : OnPreferenceDataStoreChangeListener {
 
-    // share service state in main & bg process
     @Volatile
     var serviceState = BaseService.State.Idle
 
     val configurationStore = RoomPreferenceDataStore(PublicDatabase.kvPairDao)
     val profileCacheStore = RoomPreferenceDataStore(TempDatabase.profileCacheDao)
 
-    // last used, but may not be running
     var currentProfile by configurationStore.long(Key.PROFILE_CURRENT)
 
     var selectedProxy by configurationStore.long(Key.PROFILE_ID)
-    var selectedGroup by configurationStore.long(Key.PROFILE_GROUP) { currentGroupId() } // "ungrouped" group id = 1
+    var selectedGroup by configurationStore.long(Key.PROFILE_GROUP) { currentGroupId() }
 
-    // only in bg process
     var vpnService: VpnService? = null
     var baseService: BaseService.Interface? = null
-
-    // main
 
     var runningTest = false
 
@@ -94,8 +90,6 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var networkChangeResetConnections by configurationStore.boolean(Key.NETWORK_CHANGE_RESET_CONNECTIONS) { true }
     var wakeResetConnections by configurationStore.boolean(Key.WAKE_RESET_CONNECTIONS)
 
-    //
-
     var isExpert by configurationStore.boolean(Key.APP_EXPERT)
     var appTheme by configurationStore.int(Key.APP_THEME)
     var nightTheme by configurationStore.stringToInt(Key.NIGHT_THEME)
@@ -127,22 +121,46 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var acquireWakeLock by configurationStore.boolean(Key.ACQUIRE_WAKE_LOCK)
     var hideFromRecentApps by configurationStore.boolean(Key.HIDE_FROM_RECENT_APPS)
 
-    var rulesGeositeUrl by configurationStore.string(Key.RULES_GEOSITE_URL) { "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db" }
-    var rulesGeoipUrl by configurationStore.string(Key.RULES_GEOIP_URL) { "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db" }
-    var rulesUpdateInterval by configurationStore.string(Key.RULES_UPDATE_INTERVAL) { "0" } // 默认为0，不自动更新
+    var rulesGeositeUrl by configurationStore.string(Key.RULES_GEOSITE_URL) { "https://github.com/SagerNet/sing-geosite/releases/latest/download/geosite.db" }
+    var rulesGeoipUrl by configurationStore.string(Key.RULES_GEOIP_URL) { "https://github.com/SagerNet/sing-geoip/releases/latest/download/geoip.db" }
+    var rulesUpdateInterval by configurationStore.string(Key.RULES_UPDATE_INTERVAL) { "0" }
 
-    // hopefully hashCode = mHandle doesn't change, currently this is true from KitKat to Nougat
     private val userIndex by lazy { Binder.getCallingUserHandle().hashCode() }
+
     var mixedPort: Int
         get() = getLocalPort(Key.MIXED_PORT, 2080)
         set(value) = saveLocalPort(Key.MIXED_PORT, value)
+
+    var socksPort: Int
+        get() = configurationStore.getString(Key.SOCKS_PORT)?.let { parsePort(it, mixedPort) } ?: mixedPort
+        set(value) = saveLocalPort(Key.SOCKS_PORT, value)
+
+    var httpPort: Int
+        get() = configurationStore.getString(Key.HTTP_PORT)?.let { parsePort(it, socksPort + 1) } ?: (socksPort + 1)
+        set(value) = saveLocalPort(Key.HTTP_PORT, value)
+
+    var mixedUsername by configurationStore.string(Key.MIXED_USERNAME) { "User" }
+    var mixedPassword by configurationStore.string(Key.MIXED_PASSWORD) {
+        Util.generateCryptoSecurePassword()
+    }
 
     fun initGlobal() {
         if (configurationStore.getString(Key.MIXED_PORT) == null) {
             mixedPort = mixedPort
         }
+        if (configurationStore.getString(Key.SOCKS_PORT) == null) {
+            socksPort = mixedPort
+        }
+        if (configurationStore.getString(Key.HTTP_PORT) == null) {
+            httpPort = socksPort + 1
+        }
+        if (configurationStore.getString(Key.MIXED_USERNAME) == null) {
+            mixedUsername = "User"
+        }
+        if (configurationStore.getString(Key.MIXED_PASSWORD) == null) {
+            mixedPassword = Util.generateCryptoSecurePassword()
+        }
     }
-
 
     private fun getLocalPort(key: String, default: Int): Int {
         return parsePort(configurationStore.getString(key), default + userIndex)
@@ -174,15 +192,11 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var yacdURL by configurationStore.string("yacdURL") { "http://127.0.0.1:9090/ui" }
 
-    // protocol
-
     var globalAllowInsecure by configurationStore.boolean(Key.GLOBAL_ALLOW_INSECURE) { false }
 
     var enableTLSFragment by configurationStore.boolean(Key.ENABLE_TLS_FRAGMENT) { false }
     var fragmentLength by configurationStore.string(Key.FRAGMENT_LENGTH) { "100-200" }
     var fragmentInterval by configurationStore.string(Key.FRAGMENT_INTERVAL) { "10-20" }
-
-    // old cache, DO NOT ADD
 
     var dirty by profileCacheStore.boolean(Key.PROFILE_DIRTY)
     var editingId by profileCacheStore.long(Key.PROFILE_ID)
@@ -222,7 +236,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverDisableMtuDiscovery by profileCacheStore.boolean(Key.SERVER_DISABLE_MTU_DISCOVERY)
     var serverHopInterval by profileCacheStore.stringToInt(Key.SERVER_HOP_INTERVAL) { 10 }
 
-    var protocolVersion by profileCacheStore.stringToInt(Key.PROTOCOL_VERSION) { 2 } // default is SOCKS5
+    var protocolVersion by profileCacheStore.stringToInt(Key.PROTOCOL_VERSION) { 2 }
 
     var serverProtocolInt by profileCacheStore.stringToInt(Key.SERVER_PROTOCOL)
     var serverPrivateKey by profileCacheStore.string(Key.SERVER_PRIVATE_KEY)
@@ -275,8 +289,6 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var rulesFirstCreate by profileCacheStore.boolean("rulesFirstCreate")
 
-    // var enableTLSFragment by configurationStore.boolean(Key.ENABLE_TLS_FRAGMENT)
-
     var webdavServer: String?
         get() = configurationStore.getString("webdavServer")
         set(value) = configurationStore.putString("webdavServer", value)
@@ -290,7 +302,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         set(value) = configurationStore.putString("webdavPassword", value)
 
     var webdavPath: String?
-        get() = configurationStore.getString("webdavPath") ?: "NekoBox"  // 设置默认值
+        get() = configurationStore.getString("webdavPath") ?: "NekoBox"
         set(value) = configurationStore.putString("webdavPath", value)
 
     var globalMode by configurationStore.boolean(Key.GLOBAL_MODE)
