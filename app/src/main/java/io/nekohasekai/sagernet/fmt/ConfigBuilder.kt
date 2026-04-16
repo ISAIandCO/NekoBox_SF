@@ -946,6 +946,19 @@ fun buildConfig(
             }
         }
 
+        if (!forTest) {
+            val hasVlessTlsOutbound = outbounds.any { outbound ->
+                val outboundMap = outbound.asMap()
+                val tlsOptions = outboundMap["tls"] as? Map<*, *>
+                outboundMap["type"] == "vless" && tlsOptions?.get("enabled") == true
+            }
+            if (hasVlessTlsOutbound) {
+                // Prevent recurring "tls illegal parameter" state for VLESS by avoiding
+                // persistent sing-box cache DB reuse across runs for this config.
+                experimental?.cache_file?.enabled = false
+            }
+        }
+
         if (!forTest) _hack_custom_config = DataStore.globalCustomConfig
     }.let {
         val configMap = it.asMap()

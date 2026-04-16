@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.os.RemoteException
 import android.view.KeyEvent
 import android.view.MenuItem
-import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.annotation.IdRes
 import androidx.core.app.ActivityCompat
@@ -21,7 +20,6 @@ import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
-import com.jakewharton.processphoenix.ProcessPhoenix
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
@@ -56,7 +54,6 @@ import io.nekohasekai.sagernet.ui.MessageStore
 import io.nekohasekai.sagernet.ui.publishClearCacheShortcut
 import io.nekohasekai.sagernet.ktx.Logs
 import moe.matsuri.nb4a.utils.Util
-import java.io.File
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -197,64 +194,7 @@ class MainActivity : ThemedActivity(),
     }
 
     private fun clearAppCacheAndRestart() {
-        runOnDefaultDispatcher {
-            try {
-                SagerNet.stopService()
-                Thread.sleep(300)
-
-                clearDirFiles(SagerNet.application.cacheDir, skipFiles = setOf("neko.log"))
-
-                val parentDir = SagerNet.application.cacheDir.parentFile
-                val relativeCache = parentDir?.let { File(it, "cache") }
-                if (relativeCache != null && relativeCache.exists() && relativeCache.isDirectory) {
-                    clearDirFiles(relativeCache)
-                }
-
-                onMainDispatcher {
-                    Toast.makeText(
-                        this@MainActivity,
-                        R.string.clear_cache_success,
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    ProcessPhoenix.triggerRebirth(this@MainActivity)
-                }
-            } catch (e: Exception) {
-                onMainDispatcher {
-                    Toast.makeText(
-                        this@MainActivity,
-                        getString(R.string.clear_cache_failed, e.message),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-        }
-    }
-
-    private fun clearDirFiles(dir: File, skipFiles: Set<String> = emptySet()): Boolean {
-        if (!dir.isDirectory) return false
-
-        val children = dir.list() ?: return true
-        for (child in children) {
-            val childFile = File(dir, child)
-
-            if (child == "neko.log") {
-                try {
-                    childFile.writeText("")
-                    continue
-                } catch (_: Exception) {
-                }
-            }
-
-            if (child in skipFiles) continue
-
-            if (childFile.isDirectory) {
-                clearDirFiles(childFile, skipFiles)
-            } else {
-                childFile.delete()
-            }
-        }
-
-        return true
+        recoverVlessTlsStateAndRestart(this)
     }
 
     fun urlTest(): Int {
