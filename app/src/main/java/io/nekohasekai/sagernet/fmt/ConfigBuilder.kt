@@ -263,6 +263,9 @@ fun buildConfig(
                         .filter { it.isNotEmpty() }
                         .toMutableList()
                     if (DataStore.bypass) {
+                        if (!selectedPackages.contains("android")) {
+                            selectedPackages.add("android")
+                        }
                         exclude_package = selectedPackages
                         tunBypassPackages.addAll(selectedPackages)
                         PackageCache.awaitLoadSync()
@@ -271,6 +274,7 @@ fun buildConfig(
                                 tunBypassUserIds.add(uid)
                             }
                         }
+                        tunBypassUserIds.add(1000)
                     }
                 }
             })

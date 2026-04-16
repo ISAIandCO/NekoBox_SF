@@ -184,6 +184,8 @@ class VpnService : BaseVpnService(),
                     if (!bypass) add(packageName)
                     // Keep Android system DNS resolver traffic inside VPN in allow-list mode.
                     if (!bypass) addAll(ANDROID_DNS_PACKAGES)
+                    // In bypass mode, force Android system UID traffic out of VPN.
+                    if (bypass) add("android")
                 }.forEach {
                     try {
                         if (bypass) {
