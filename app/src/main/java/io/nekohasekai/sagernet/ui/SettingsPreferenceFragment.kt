@@ -3,9 +3,11 @@ package io.nekohasekai.sagernet.ui
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.text.InputType
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.preference.*
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -15,22 +17,18 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.utils.Theme
 import io.nekohasekai.sagernet.ui.requestPinClearCacheShortcut
+import io.nekohasekai.sagernet.utils.Theme
 import moe.matsuri.nb4a.ui.*
-import android.widget.Toast
 import java.io.File
 
 class SettingsPreferenceFragment : PreferenceFragmentCompat() {
 
     private lateinit var isProxyApps: SwitchPreference
-
     private lateinit var globalCustomConfig: EditConfigPreference
-
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         listView.layoutManager = FixedLinearLayoutManager(listView)
     }
 
@@ -64,7 +62,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             Theme.applyNightTheme()
             true
         }
-        val mixedPort = findPreference<EditTextPreference>(Key.MIXED_PORT)!!
+
+        val socksPort = findPreference<EditTextPreference>(Key.SOCKS_PORT)!!
+        val httpPort = findPreference<EditTextPreference>(Key.HTTP_PORT)!!
+        val mixedUsername = findPreference<EditTextPreference>(Key.MIXED_USERNAME)!!
+        val mixedPassword = findPreference<EditTextPreference>(Key.MIXED_PASSWORD)!!
         val serviceMode = findPreference<Preference>(Key.SERVICE_MODE)!!
         val allowAccess = findPreference<SwitchPreference>(Key.ALLOW_ACCESS)!!
         val appendHttpProxy = findPreference<SwitchPreference>(Key.APPEND_HTTP_PROXY)!!
@@ -115,12 +117,18 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        mixedPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        socksPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        httpPort.setOnBindEditTextListener(EditTextPreferenceModifiers.Port)
+        mixedPassword.setOnBindEditTextListener { editText ->
+            editText.inputType =
+                InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
 
         val metedNetwork = findPreference<Preference>(Key.METERED_NETWORK)!!
         if (Build.VERSION.SDK_INT < 28) {
             metedNetwork.remove()
         }
+
         isProxyApps = findPreference(Key.PROXY_APPS)!!
         isProxyApps.setOnPreferenceChangeListener { _, newValue ->
             startActivity(Intent(activity, AppManagerActivity::class.java))
@@ -166,7 +174,10 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        mixedPort.onPreferenceChangeListener = reloadListener
+        socksPort.onPreferenceChangeListener = reloadListener
+        httpPort.onPreferenceChangeListener = reloadListener
+        mixedUsername.onPreferenceChangeListener = reloadListener
+        mixedPassword.onPreferenceChangeListener = reloadListener
         appendHttpProxy.onPreferenceChangeListener = reloadListener
         strictRoute.onPreferenceChangeListener = reloadListener
         showDirectSpeed.onPreferenceChangeListener = reloadListener
@@ -191,13 +202,11 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         acquireWakeLock.onPreferenceChangeListener = reloadListener
         hideFromRecentApps.setOnPreferenceChangeListener { _, newValue ->
             (activity as? MainActivity)?.applyHideFromRecentApps(newValue as Boolean)
-            // needReload()
             true
         }
 
         enableTLSFragment.onPreferenceChangeListener = reloadListener
 
-        // 恢复默认设置功能
         val resetSettings = findPreference<Preference>("resetSettings")!!
         resetSettings.setOnPreferenceClickListener {
             MaterialAlertDialogBuilder(requireContext()).apply {
@@ -212,7 +221,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             true
         }
 
-        // 清理缓存功能
         val clearCache = findPreference<Preference>(Key.CLEAR_CACHE)!!
         clearCache.setOnPreferenceClickListener {
             MaterialAlertDialogBuilder(requireContext()).apply {
@@ -252,7 +260,6 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
     private fun clearAppCache() {
         runOnDefaultDispatcher {
             try {
-                // Stop current core/service first, so cache files are no longer in use.
                 SagerNet.stopService()
                 Thread.sleep(300)
 
@@ -285,14 +292,14 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             }
         }
     }
-    
+
     private fun clearDirFiles(dir: File, skipFiles: Set<String> = emptySet()): Boolean {
         if (dir.isDirectory) {
             val children = dir.list() ?: return true
-            
+
             for (child in children) {
                 val childFile = File(dir, child)
-                
+
                 if (child == "neko.log") {
                     try {
                         childFile.writeText("")
@@ -301,18 +308,18 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
                         e.printStackTrace()
                     }
                 }
-                
+
                 if (child in skipFiles) {
                     continue
                 }
-                
+
                 if (childFile.isDirectory) {
                     clearDirFiles(childFile, skipFiles)
                 } else {
                     childFile.delete()
                 }
             }
-            
+
             return true
         }
         return false

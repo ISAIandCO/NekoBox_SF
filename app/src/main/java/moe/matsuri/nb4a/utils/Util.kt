@@ -14,14 +14,6 @@ import java.util.zip.Inflater
 
 object Util {
 
-    /**
-     * 取两个文本之间的文本值
-     *
-     * @param text  源文本 比如：欲取全文本为 12345
-     * @param left  文本前面
-     * @param right 后面文本
-     * @return 返回 String
-     */
     fun getSubString(text: String, left: String?, right: String?): String {
         var zLen: Int
         if (left.isNullOrEmpty()) {
@@ -41,8 +33,6 @@ object Util {
         return text.substring(zLen, yLen)
     }
 
-    // Base64 for all
-
     fun b64EncodeUrlSafe(s: String): String {
         return b64EncodeUrlSafe(s.toByteArray())
     }
@@ -51,7 +41,6 @@ object Util {
         return String(Base64.encode(b, Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE))
     }
 
-    // v2rayN Style
     fun b64EncodeOneLine(b: ByteArray): String {
         return String(Base64.encode(b, Base64.NO_WRAP))
     }
@@ -63,13 +52,11 @@ object Util {
     fun b64Decode(b: String): ByteArray {
         var ret: ByteArray? = null
 
-        // padding 自动处理，不用理
-        // URLSafe 需要替换这两个，不要用 URL_SAFE 否则处理非 Safe 的时候会乱码
         val str = b.replace("-", "+").replace("_", "/")
 
         val flags = listOf(
-            Base64.DEFAULT, // 多行
-            Base64.NO_WRAP, // 单行
+            Base64.DEFAULT,
+            Base64.NO_WRAP,
         )
 
         for (flag in flags) {
@@ -84,8 +71,6 @@ object Util {
     }
 
     fun zlibCompress(input: ByteArray, level: Int): ByteArray {
-        // Compress the bytes
-        // 1 to 4 bytes/char for UTF-8
         val output = ByteArray(input.size * 4)
         val compressor = Deflater(level).apply {
             setInput(input)
@@ -132,12 +117,12 @@ object Util {
                 val currentMap = (dst[k] as Map<*, *>).toMutableMap()
                 dst[k] = mergeMap(map2StringMap(currentMap), map2StringMap(v))
             } else if (v is List<*>) {
-                if (k.startsWith("+")) {  // prepend
+                if (k.startsWith("+")) {
                     val dstKey = k.removePrefix("+")
                     var currentList = (dst[dstKey] as? List<*>)?.toMutableList() ?: mutableListOf()
                     currentList = (v + currentList).toMutableList()
                     dst[dstKey] = currentList
-                } else if (k.endsWith("+")) {  // append
+                } else if (k.endsWith("+")) {
                     val dstKey = k.removeSuffix("+")
                     var currentList = (dst[dstKey] as? List<*>)?.toMutableList() ?: mutableListOf()
                     currentList = (currentList + v).toMutableList()
@@ -157,8 +142,6 @@ object Util {
         val src = JavaUtil.gson.fromJson(j, dst.javaClass)
         mergeMap(dst, src)
     }
-
-    // Format Time
 
     @SuppressLint("SimpleDateFormat")
     val sdf1 = SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
@@ -196,5 +179,14 @@ object Util {
         val match = regex.find(headerValue)
         val encoded = match?.groupValues?.get(1) ?: ""
         return URLDecoder.decode(encoded, StandardCharsets.UTF_8.name())
+    }
+
+    fun generateCryptoSecurePassword(length: Int = 20): String {
+        val chars =
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_-+=."
+        val secureRandom = java.security.SecureRandom()
+        return (1..length)
+            .map { chars[secureRandom.nextInt(chars.length)] }
+            .joinToString("")
     }
 }
