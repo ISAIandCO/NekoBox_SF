@@ -207,9 +207,9 @@ class VpnService : BaseVpnService(),
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy) {
-            builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOCALHOST, DataStore.mixedPort))
-        }
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && DataStore.appendHttpProxy) {
+    builder.setHttpProxy(ProxyInfo.buildDirectProxy(LOCALHOST, DataStore.httpPort))
+}
 
         metered = DataStore.meteredNetwork
         if (Build.VERSION.SDK_INT >= 29) builder.setMetered(metered)
