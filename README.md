@@ -1,36 +1,5 @@
-# NekoBox for Android
-[Форк этого репозитория (в котором относительно ваниллы есть xhttp)](https://github.com/starifly/NekoBoxForAndroid)
-
-## Основные правки относительно него
-+ Устранена утечка через tun0
-+ Устранена утечка через proxy (внедрена авторизация)
-+ Socks5 и HTTP разнесены на разные порты (логин\пароль общие)
-
-### "tls illegal"
-+ Возможность вывести на рабочий стол ярлык "Clear Cache & Reboot" - чистит кэш и делает холодный перезапуск как при смене уровня логирования (да, смена уровня логирования это чинит)
-+ **_Возможно_** устранена первопричина: как понял проблема в "залипании" и общей db у профилей - db теперь разные + при запуске vless с tls применяется experimental.cache_file.enabled = false (тоесть битой db быть не должно так как ее не будет)
-
-## Минусы
-+ Кажется сломалась маршрутизация при "Персональном DNS" без "FakeDNS" в NB - с "FakeDNS" или без "Персонального DNS" все ок
-
-## Рекомендации (уровня ИМХО)
-+ Прописать "Персональный DNS" в настройках системы (например dns.adguard-dns.com)
-+ В NB:
-   - [x] Режим VPN для приложений (прокси и выбрать нужные)
-   - [x] Обход LAN
-   - [x] Обход LAN в ядре
-   - [x] Определить адрес назначения
-   - [x] Удаленный\Прямой DNS (указать DoH? например https://dns.adguard-dns.com/dns-query)
-   - [x] Правило домена - prefer_ipv4 (ipv6 хорошо, но не в России - не распространено)
-   - [ ] Включить маршрутизацию DNS
-   - [x] Включить FakeDNS
-   - [x] Socks5\HTTP порт - между 20000 и 40000
-   - [x] Маршрут > Новый > dst ip = geoip:ru, outbound = Обход > Сохранить и вниз списка
-   - [x] Маршрут > Новый > Domain = geosite:category-ru, outbound = Обход > Сохранить и выше ip
-   - [x] Маршрут > Новый > Пользовательская конфигурация > {"ip_is_private": true,"outbound": "direct"} > outbound = Обход > Сохранить и вверх списка
-
 <details>
-<summary>Описание от оригинала</summary>
+<summary>Описание оригинала</summary>
 
 # NekoBox for Android
 
@@ -210,4 +179,58 @@ https://matsuridayo.github.io
 ### Web Dashboard
 
 - [Yacd-meta](https://github.com/MetaCubeX/Yacd-meta)
+</details>
+
+# NekoBox for Android
+[Форк этого репозитория (в котором относительно ваниллы есть xhttp)](https://github.com/starifly/NekoBoxForAndroid)
+
+## Основные правки относительно него
++ Устранена утечка через tun0
++ Устранена утечка через proxy (внедрена авторизация)
++ Socks5 и HTTP разнесены на разные порты (логин\пароль общие)
+
+### "tls illegal"
++ Возможность вывести на рабочий стол ярлык "Clear Cache & Reboot" - чистит кэш и делает холодный перезапуск как при смене уровня логирования (да, смена уровня логирования это чинит)
++ **_Возможно_** устранена первопричина: как понял проблема в "залипании" и общей db у профилей - db теперь разные + при запуске vless с tls применяется experimental.cache_file.enabled = false (тоесть битой db быть не должно так как ее не будет)
+
+## Минусы
++ Кажется сломалась маршрутизация при "Персональном DNS" без "FakeDNS" в NB - с "FakeDNS" или без "Персонального DNS" все ок
+
+## Рекомендации (уровня ИМХО)
++ Прописать "Персональный DNS" в настройках системы (например dns.adguard-dns.com)
++ В NB:
+   - [x] Режим VPN для приложений (прокси и выбрать нужные)
+   - [x] Обход LAN
+   - [x] Обход LAN в ядре
+   - [x] Определить адрес назначения
+   - [x] Удаленный\Прямой DNS (указать DoH? например https://dns.adguard-dns.com/dns-query)
+   - [x] Правило домена - prefer_ipv4 (ipv6 хорошо, но не в России - не распространено)
+   - [ ] Включить маршрутизацию DNS
+   - [x] Включить FakeDNS
+   - [x] Socks5\HTTP порт - между 20000 и 40000
+   - [x] Маршрут > Новый > dst ip = geoip:ru, outbound = Обход > Сохранить и вниз списка
+   - [x] Маршрут > Новый > Domain = geosite:category-ru, outbound = Обход > Сохранить и выше ip
+   - [x] Маршрут > Новый > Пользовательская конфигурация > {"ip_is_private": true,"outbound": "direct"} > outbound = Обход > Сохранить и вверх списка
+
+## Тесты
+
+<details>
+<summary>RKNHardering</summary>
+<a href="https://github.com/ISAIandCO/NekoBox_SF/blob/main/.github/RKNHardering.jpg">
+    <img src="/.github/RKNHardering.jpg" alt="RKNHardering" width="1500">
+</a>
+</details>
+
+<details>
+<summary>YourVPNDead</summary>	
+<a href="https://github.com/ISAIandCO/NekoBox_SF/blob/main/.github/YourVPNDead.jpg">
+    <img src="/.github/YourVPNDead.jpg" alt="YourVPNDead" width="1500">
+</a>
+</details>
+
+<details>
+<summary>Termux (tun0)</summary>	
+<a href="https://github.com/ISAIandCO/NekoBox_SF/blob/main/.github/Termux.png">
+    <img src="/.github/Termux.png" alt="Termux" width="500">
+</a>
 </details>
