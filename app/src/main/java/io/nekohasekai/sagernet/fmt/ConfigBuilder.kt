@@ -86,6 +86,8 @@ fun buildConfig(
     val trafficMap = HashMap<String, List<ProxyEntity>>()
     val tagMap = HashMap<Long, String>()
     val globalOutbounds = HashMap<Long, String>()
+    val tunBypassPackages = linkedSetOf<String>()
+    val tunBypassUserIds = linkedSetOf<Int>()
     val readableNames = mutableSetOf(TAG_DIRECT, TAG_BYPASS, TAG_BLOCK, TAG_FRAGMENT, TAG_MIXED, TAG_PROXY)
     val group = SagerDatabase.groupDao.getById(proxy.groupId)
 
@@ -242,6 +244,27 @@ fun buildConfig(
                     else -> {
                         inet4_address = listOf(VpnService.PRIVATE_VLAN4_CLIENT + "/28")
                         inet6_address = listOf(VpnService.PRIVATE_VLAN6_CLIENT + "/126")
+                    }
+                }
+                if (DataStore.proxyApps) {
+                    val selectedPackages = DataStore.individual
+                        .lineSequence()
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .toMutableList()
+                    if (DataStore.bypass) {
+                        if (!selectedPackages.contains("android")) {
+                            selectedPackages.add("android")
+                        }
+                        exclude_package = selectedPackages
+                        tunBypassPackages.addAll(selectedPackages)
+                        PackageCache.awaitLoadSync()
+                        selectedPackages.forEach {
+                            PackageCache[it]?.takeIf { uid -> uid >= 1000 }?.let { uid ->
+                                tunBypassUserIds.add(uid)
+                            }
+                        }
+                        tunBypassUserIds.add(1000)
                     }
                 }
             })
@@ -756,6 +779,20 @@ fun buildConfig(
         // 对 rule_set tag 去重
         if (route.rule_set != null) {
             route.rule_set = route.rule_set.distinctBy { it.tag }
+        }
+        if (isVPN && DataStore.proxyApps && DataStore.bypass && tunBypassPackages.isNotEmpty()) {
+            route.rules.add(0, Rule_DefaultOptions().apply {
+                inbound = listOf("tun-in")
+                package_name = tunBypassPackages.toList()
+                action = "reject"
+            })
+        }
+        if (isVPN && DataStore.proxyApps && DataStore.bypass && tunBypassUserIds.isNotEmpty()) {
+            route.rules.add(0, Rule_DefaultOptions().apply {
+                inbound = listOf("tun-in")
+                user_id = tunBypassUserIds.toList()
+                action = "reject"
+            })
         }
 
         for (freedom in arrayOf(TAG_DIRECT, TAG_BYPASS)) outbounds.add(Outbound().apply {
