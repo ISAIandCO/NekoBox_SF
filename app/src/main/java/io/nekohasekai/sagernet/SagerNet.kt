@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.net.ConnectivityManager
+import android.net.LinkProperties
 import android.net.Network
 import android.os.Build
 import android.os.PowerManager
@@ -201,6 +202,13 @@ class SagerNet : Application(),
             application.sendBroadcast(Intent(Action.CLOSE).setPackage(application.packageName))
 
         var underlyingNetwork: Network? = null
+
+        fun isPrivateDnsActiveOnUnderlyingNetwork(): Boolean {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+            val network = underlyingNetwork ?: connectivity.activeNetwork ?: return false
+            val linkProperties: LinkProperties = connectivity.getLinkProperties(network) ?: return false
+            return linkProperties.isPrivateDnsActive
+        }
 
         var appVersionNameForDisplay = {
             var n = BuildConfig.VERSION_NAME
