@@ -6,6 +6,8 @@ import org.gradle.api.Project
 import org.gradle.api.plugins.ExtensionAware
 import org.gradle.kotlin.dsl.getByName
 import org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Base64
 import java.util.Properties
 import kotlin.system.exitProcess
@@ -99,14 +101,6 @@ fun Project.setupCommon() {
                     jniDebuggable(true)
                 }
             }
-            applicationVariants.forEach { variant ->
-                variant.outputs.forEach {
-                    it as BaseVariantOutputImpl
-                    it.outputFileName = it.outputFileName.replace(
-                        "app", "${project.name}-" + variant.versionName
-                    ).replace("-release", "").replace("-oss", "")
-                }
-            }
         }
     }
 }
@@ -121,24 +115,40 @@ fun Project.setupAppCommon() {
         ?.takeIf { it.isNotBlank() }
     val pwd = (lp.getProperty("ALIAS_PASS") ?: System.getenv("ALIAS_PASS"))
         ?.takeIf { it.isNotBlank() }
-    val keystoreFile = rootProject.file("release.keystore")
+    val releaseKeystoreFile = rootProject.file("release.keystore")
+    val debugKeystoreFile = rootProject.file("app/debug.keystore")
 
     android.apply {
-        if (keystorePwd != null && alias != null && pwd != null && keystoreFile.isFile) {
-            signingConfigs {
+        signingConfigs {
+            if (keystorePwd != null && alias != null && pwd != null && releaseKeystoreFile.isFile) {
                 create("release") {
-                    storeFile = keystoreFile
+                    storeFile = releaseKeystoreFile
                     storePassword = keystorePwd
                     keyAlias = alias
                     keyPassword = pwd
                 }
             }
+            if (debugKeystoreFile.isFile) {
+                create("ciDebug") {
+                    storeFile = debugKeystoreFile
+                    storePassword = "android"
+                    keyAlias = "androiddebugkey"
+                    keyPassword = "android"
+                }
+            }
         }
         buildTypes {
-            val key = signingConfigs.findByName("release")
-            if (key != null) {
-                getByName("release").signingConfig = key
-                getByName("debug").signingConfig = key
+            val releaseKey = signingConfigs.findByName("release")
+            val ciDebugKey = signingConfigs.findByName("ciDebug")
+            when {
+                releaseKey != null -> {
+                    getByName("release").signingConfig = releaseKey
+                    getByName("debug").signingConfig = releaseKey
+                }
+
+                ciDebugKey != null -> {
+                    getByName("debug").signingConfig = ciDebugKey
+                }
             }
         }
     }
@@ -194,20 +204,14 @@ fun Project.setupApp() {
             }
         }
 
+        val buildDateStamp = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"))
+        val abiPattern = Regex("(armeabi-v7a|arm64-v8a|x86_64|x86)")
+
         applicationVariants.all {
             outputs.all {
                 this as BaseVariantOutputImpl
-                val isPreview = outputFileName.contains("-preview")
-                outputFileName = if (isPreview) {
-                    outputFileName.replace(
-                        project.name,
-                        "NekoBox-" + requireMetadata().getProperty("PRE_VERSION_NAME")
-                    ).replace("-preview", "")
-                } else {
-                    outputFileName.replace(project.name, "NekoBox-$versionName")
-                        .replace("-release", "")
-                        .replace("-oss", "")
-                }
+                val abi = abiPattern.find(outputFileName)?.value ?: "universal"
+                outputFileName = "NB_SF-$buildDateStamp-$abi.apk"
             }
         }
 

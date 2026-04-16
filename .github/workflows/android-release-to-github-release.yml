@@ -103,16 +103,12 @@ jobs:
       - name: Build installable OSS debug APK
         run: ./gradlew --no-daemon :app:assembleOssDebug
 
-      - name: Build release APK
-        run: ./gradlew --no-daemon :app:assembleRelease
-
       - name: Collect release assets
         shell: bash
         run: |
           mkdir -p release-assets
           find app/build/outputs/apk/oss/debug -type f -name "*.apk" -print -exec cp -v {} release-assets/ \;
-          find app/build/outputs/apk -type f -name "*release*.apk" -print -exec cp -v {} release-assets/ \;
-          test -n "$(find release-assets -maxdepth 1 -type f -name "*.apk" -print -quit)" || { echo "No APK files found"; exit 1; }
+          test -n "$(find release-assets -maxdepth 1 -type f -name "*.apk" -print -quit)" || { echo "No OSS debug APK files found"; exit 1; }
           (
             cd release-assets
             sha256sum *.apk > SHA256SUMS.txt
