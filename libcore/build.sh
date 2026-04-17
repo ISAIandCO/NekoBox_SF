@@ -14,10 +14,27 @@ if [ -z "$GOPATH" ]; then
   GOPATH=$(go env GOPATH)
 fi
 
+# Ensure local replacements used by libcore/go.mod are available even when
+# init.sh was not executed in the current CI step.
+ROOT_DIR="$(cd ../.. && pwd)"
+SINGBOX_DIR="$ROOT_DIR/sing-box"
+LIBNEKO_DIR="$ROOT_DIR/libneko"
+
+if [ ! -d "$SINGBOX_DIR/.git" ]; then
+  git clone --depth 1 --branch def https://github.com/MatsuriDayo/sing-box.git "$SINGBOX_DIR"
+fi
+if [ ! -d "$LIBNEKO_DIR/.git" ]; then
+  git clone --depth 1 https://github.com/MatsuriDayo/libneko.git "$LIBNEKO_DIR"
+fi
+
 # gomobile may internally install tools with @latest.
 # Let Go auto-upgrade toolchain instead of failing with GOTOOLCHAIN=local.
 if [ "${GOTOOLCHAIN}" = "local" ]; then
   export GOTOOLCHAIN=auto
+fi
+
+if [ ! -x "$GOPATH/bin/gomobile-matsuri" ] || [ ! -x "$GOPATH/bin/gobind-matsuri" ]; then
+  ./init.sh
 fi
 
 export GOBIND=gobind-matsuri
