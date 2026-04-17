@@ -11,11 +11,15 @@ type ReceiveFunc = amz.ReceiveFunc
 
 type Endpoint = amz.Endpoint
 
+type Listener interface {
+	WireGuardControl() func(network, address string, c syscall.RawConn) error
+}
+
 type Bind interface {
 	Open(port uint16) (fns []ReceiveFunc, actualPort uint16, err error)
 	Close() error
 	SetMark(mark uint32) error
-	Send(bufs [][]byte, ep Endpoint, offset int) error
+	Send(bufs [][]byte, ep Endpoint) error
 	ParseEndpoint(s string) (Endpoint, error)
 	BatchSize() int
 	SetReservedForEndpoint(destination netip.AddrPort, reserved [3]byte)
@@ -63,19 +67,8 @@ func (b *bindCompat) SetMark(mark uint32) error {
 	return b.inner.SetMark(mark)
 }
 
-func (b *bindCompat) Send(bufs [][]byte, ep Endpoint, offset int) error {
-	if offset == 0 {
-		return b.inner.Send(bufs, ep)
-	}
-	offsetBufs := make([][]byte, 0, len(bufs))
-	for _, packet := range bufs {
-		if offset >= len(packet) {
-			offsetBufs = append(offsetBufs, packet[:0])
-		} else {
-			offsetBufs = append(offsetBufs, packet[offset:])
-		}
-	}
-	return b.inner.Send(offsetBufs, ep)
+func (b *bindCompat) Send(bufs [][]byte, ep Endpoint) error {
+	return b.inner.Send(bufs, ep)
 }
 
 func (b *bindCompat) ParseEndpoint(s string) (Endpoint, error) {
@@ -106,7 +99,7 @@ func (b *bindAdapter) SetMark(mark uint32) error {
 }
 
 func (b *bindAdapter) Send(bufs [][]byte, ep amz.Endpoint) error {
-	return b.inner.Send(bufs, ep, 0)
+	return b.inner.Send(bufs, ep)
 }
 
 func (b *bindAdapter) ParseEndpoint(s string) (amz.Endpoint, error) {
