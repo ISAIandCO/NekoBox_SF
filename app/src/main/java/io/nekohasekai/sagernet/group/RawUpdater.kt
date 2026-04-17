@@ -769,8 +769,8 @@ object RawUpdater : GroupUpdater() {
             } catch (e: YAMLException) {
                 Logs.w(e)
             }
-        } else if (text.contains("[Interface]")) {
-            // wireguard
+        } else if (Regex("""(?im)^\s*\[interface]\s*$""").containsMatchIn(text)) {
+            // wireguard / amneziawg
             try {
                 proxies.addAll(parseWireGuard(text).map {
                     if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
