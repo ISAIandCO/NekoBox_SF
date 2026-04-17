@@ -95,7 +95,7 @@ replace github.com/sagernet/sing-box => ../../sing-box
 
 replace github.com/sagernet/cloudflare-tls => github.com/sagernet/cloudflare-tls v0.0.0-20230829051644-4a68352d0c4a
 
-replace github.com/sagernet/wireguard-go => github.com/amnezia-vpn/amneziawg-go v0.2.13
+replace github.com/sagernet/wireguard-go => github.com/amnezia-vpn/amneziawg-go v0.2.16
 
 replace github.com/sagernet/sing-vmess => github.com/starifly/sing-vmess v0.2.7-mod.9
 
