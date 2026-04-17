@@ -3,6 +3,7 @@ module github.com/pulsarvpn/amneziawg-go
 go 1.24.4
 
 require (
+	github.com/sagernet/sing v0.7.18
 	go.uber.org/atomic v1.11.0
 	golang.org/x/crypto v0.39.0
 	golang.org/x/net v0.41.0

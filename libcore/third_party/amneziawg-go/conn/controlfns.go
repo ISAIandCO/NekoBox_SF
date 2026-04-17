@@ -8,6 +8,8 @@ package conn
 import (
 	"net"
 	"syscall"
+
+	"github.com/sagernet/sing/common/control"
 )
 
 // UDP socket read/write buffer size (7MB). The value of 7MB is chosen as it is
@@ -20,7 +22,7 @@ const socketBufferSize = 7 << 20
 // ControlFunc is the callback function signature from net.ListenConfig.Control.
 // It is used to apply platform specific configuration to the socket prior to
 // bind.
-type ControlFunc func(network, address string, c syscall.RawConn) error
+type ControlFunc = control.Func
 
 // controlFn is an alias for backwards compatibility
 type controlFn = ControlFunc
