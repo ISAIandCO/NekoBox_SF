@@ -605,6 +605,22 @@ object RawUpdater : GroupUpdater() {
                                                 }
                                             }
                                         }
+                                        "jc" -> jc = value.toString().toIntOrNull()
+                                        "jmin" -> jmin = value.toString().toIntOrNull()
+                                        "jmax" -> jmax = value.toString().toIntOrNull()
+                                        "s1" -> s1 = value.toString().toIntOrNull()
+                                        "s2" -> s2 = value.toString().toIntOrNull()
+                                        "s3" -> s3 = value.toString().toIntOrNull()
+                                        "s4" -> s4 = value.toString().toIntOrNull()
+                                        "h1" -> h1 = value.toString()
+                                        "h2" -> h2 = value.toString()
+                                        "h3" -> h3 = value.toString()
+                                        "h4" -> h4 = value.toString()
+                                        "i1" -> i1 = value.toString()
+                                        "i2" -> i2 = value.toString()
+                                        "i3" -> i3 = value.toString()
+                                        "i4" -> i4 = value.toString()
+                                        "i5" -> i5 = value.toString()
                                     }
                                 }
                             }
@@ -823,6 +839,22 @@ object RawUpdater : GroupUpdater() {
         bean.localAddress = localAddresses.flatMap { it.split(",") }.joinToString("\n")
         bean.privateKey = iface["PrivateKey"]
         bean.mtu = iface["MTU"]?.toIntOrNull()
+        bean.jc = iface["Jc"]?.toIntOrNull() ?: iface["jc"]?.toIntOrNull()
+        bean.jmin = iface["Jmin"]?.toIntOrNull() ?: iface["jmin"]?.toIntOrNull()
+        bean.jmax = iface["Jmax"]?.toIntOrNull() ?: iface["jmax"]?.toIntOrNull()
+        bean.s1 = iface["S1"]?.toIntOrNull() ?: iface["s1"]?.toIntOrNull()
+        bean.s2 = iface["S2"]?.toIntOrNull() ?: iface["s2"]?.toIntOrNull()
+        bean.s3 = iface["S3"]?.toIntOrNull() ?: iface["s3"]?.toIntOrNull()
+        bean.s4 = iface["S4"]?.toIntOrNull() ?: iface["s4"]?.toIntOrNull()
+        bean.h1 = iface["H1"] ?: iface["h1"]
+        bean.h2 = iface["H2"] ?: iface["h2"]
+        bean.h3 = iface["H3"] ?: iface["h3"]
+        bean.h4 = iface["H4"] ?: iface["h4"]
+        bean.i1 = iface["I1"] ?: iface["i1"]
+        bean.i2 = iface["I2"] ?: iface["i2"]
+        bean.i3 = iface["I3"] ?: iface["i3"]
+        bean.i4 = iface["I4"] ?: iface["i4"]
+        bean.i5 = iface["I5"] ?: iface["i5"]
         val peers = ini.getAll("Peer")
         if (peers.isNullOrEmpty()) error("Missing 'Peer' selections")
         val beans = mutableListOf<WireGuardBean>()

@@ -28,7 +28,7 @@ fun genReserved(anyStr: String): String {
 
 fun buildSingBoxOutboundWireguardBean(bean: WireGuardBean): SingBoxOptions.Outbound_WireGuardOptions {
     return SingBoxOptions.Outbound_WireGuardOptions().apply {
-        type = "wireguard"
+        type = "amneziawg"
         server = bean.serverAddress
         server_port = bean.serverPort
         local_address = bean.localAddress.listByLineOrComma()
@@ -37,5 +37,21 @@ fun buildSingBoxOutboundWireguardBean(bean: WireGuardBean): SingBoxOptions.Outbo
         pre_shared_key = bean.peerPreSharedKey
         mtu = bean.mtu
         if (bean.reserved.isNotBlank()) reserved = genReserved(bean.reserved)
+        bean.jc?.takeIf { it > 0 }?.also { jc = it }
+        bean.jmin?.takeIf { it > 0 }?.also { jmin = it }
+        bean.jmax?.takeIf { it > 0 }?.also { jmax = it }
+        bean.s1?.takeIf { it > 0 }?.also { s1 = it }
+        bean.s2?.takeIf { it > 0 }?.also { s2 = it }
+        bean.s3?.takeIf { it > 0 }?.also { s3 = it }
+        bean.s4?.takeIf { it > 0 }?.also { s4 = it }
+        bean.h1?.takeIf { it.isNotBlank() }?.also { h1 = it }
+        bean.h2?.takeIf { it.isNotBlank() }?.also { h2 = it }
+        bean.h3?.takeIf { it.isNotBlank() }?.also { h3 = it }
+        bean.h4?.takeIf { it.isNotBlank() }?.also { h4 = it }
+        bean.i1?.takeIf { it.isNotBlank() }?.also { i1 = it }
+        bean.i2?.takeIf { it.isNotBlank() }?.also { i2 = it }
+        bean.i3?.takeIf { it.isNotBlank() }?.also { i3 = it }
+        bean.i4?.takeIf { it.isNotBlank() }?.also { i4 = it }
+        bean.i5?.takeIf { it.isNotBlank() }?.also { i5 = it }
     }
 }

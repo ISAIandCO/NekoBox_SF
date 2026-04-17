@@ -16,6 +16,7 @@ import (
 	"github.com/sagernet/sing-box/dns/transport/quic"
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/amneziawg"
 	"github.com/sagernet/sing-box/protocol/anytls"
 	"github.com/sagernet/sing-box/protocol/block"
 	"github.com/sagernet/sing-box/protocol/direct"
@@ -37,7 +38,6 @@ import (
 	"github.com/sagernet/sing-box/protocol/tun"
 	"github.com/sagernet/sing-box/protocol/vless"
 	"github.com/sagernet/sing-box/protocol/vmess"
-	"github.com/sagernet/sing-box/protocol/wireguard"
 
 	"libcore/protocol/juicity"
 
@@ -88,7 +88,7 @@ func nekoboxAndroidOutboundRegistry() *outbound.Registry {
 	hysteria2.RegisterOutbound(registry)
 	juicity.RegisterOutbound(registry)
 
-	wireguard.RegisterOutbound(registry)
+	amneziawg.RegisterOutbound(registry)
 
 	return registry
 }
@@ -96,7 +96,7 @@ func nekoboxAndroidOutboundRegistry() *outbound.Registry {
 func nekoboxAndroidEndpointRegistry() *endpoint.Registry {
 	registry := endpoint.NewRegistry()
 
-	wireguard.RegisterEndpoint(registry)
+	amneziawg.RegisterEndpoint(registry)
 
 	return registry
 }

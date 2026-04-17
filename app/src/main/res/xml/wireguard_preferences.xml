@@ -48,6 +48,86 @@
             app:key="reserved"
             app:title="Reserved"
             app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="jc"
+            app:title="Jc"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="jmin"
+            app:title="Jmin"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="jmax"
+            app:title="Jmax"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="s1"
+            app:title="S1"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="s2"
+            app:title="S2"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="s3"
+            app:title="S3"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_multiple_stop_24"
+            app:key="s4"
+            app:title="S4"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="h1"
+            app:title="H1"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="h2"
+            app:title="H2"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="h3"
+            app:title="H3"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="h4"
+            app:title="H4"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="i1"
+            app:title="I1"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="i2"
+            app:title="I2"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="i3"
+            app:title="I3"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="i4"
+            app:title="I4"
+            app:useSimpleSummaryProvider="true" />
+        <EditTextPreference
+            app:icon="@drawable/ic_baseline_texture_24"
+            app:key="i5"
+            app:title="I5"
+            app:useSimpleSummaryProvider="true" />
     </PreferenceCategory>
 
 </PreferenceScreen>

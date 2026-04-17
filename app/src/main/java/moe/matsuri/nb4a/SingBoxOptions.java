@@ -2791,6 +2791,38 @@ public class SingBoxOptions {
         // Generate note: Base64 String
         public String reserved;
 
+        public Integer jc;
+
+        public Integer jmin;
+
+        public Integer jmax;
+
+        public Integer s1;
+
+        public Integer s2;
+
+        public Integer s3;
+
+        public Integer s4;
+
+        public String h1;
+
+        public String h2;
+
+        public String h3;
+
+        public String h4;
+
+        public String i1;
+
+        public String i2;
+
+        public String i3;
+
+        public String i4;
+
+        public String i5;
+
         public Integer workers;
 
         public Integer mtu;
@@ -3930,6 +3962,38 @@ public class SingBoxOptions {
 
         // Generate note: Base64 String
         public String reserved;
+
+        public Integer jc;
+
+        public Integer jmin;
+
+        public Integer jmax;
+
+        public Integer s1;
+
+        public Integer s2;
+
+        public Integer s3;
+
+        public Integer s4;
+
+        public String h1;
+
+        public String h2;
+
+        public String h3;
+
+        public String h4;
+
+        public String i1;
+
+        public String i2;
+
+        public String i3;
+
+        public String i4;
+
+        public String i5;
 
         public Integer workers;
 
