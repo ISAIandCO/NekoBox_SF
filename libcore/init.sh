@@ -7,6 +7,12 @@ if [ -z "$GOPATH" ]; then
     GOPATH=$(go env GOPATH)
 fi
 
+# gomobile upstream may require a newer Go toolchain for @latest installs.
+# Allow toolchain auto-switch in CI when GOTOOLCHAIN is pinned to local.
+if [ "${GOTOOLCHAIN}" = "local" ]; then
+    export GOTOOLCHAIN=auto
+fi
+
 # Install gomobile
 if [ ! -f "$GOPATH/bin/gomobile-matsuri" ]; then
     git clone https://github.com/MatsuriDayo/gomobile.git

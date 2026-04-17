@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./env_java.sh || true
+[ -f ./env_java.sh ] && source ./env_java.sh
 source ../buildScript/init/env_ndk.sh
 
 BUILD=".build"
@@ -12,6 +12,12 @@ rm -rf $BUILD/android \
 
 if [ -z "$GOPATH" ]; then
   GOPATH=$(go env GOPATH)
+fi
+
+# gomobile may internally install tools with @latest.
+# Let Go auto-upgrade toolchain instead of failing with GOTOOLCHAIN=local.
+if [ "${GOTOOLCHAIN}" = "local" ]; then
+  export GOTOOLCHAIN=auto
 fi
 
 export GOBIND=gobind-matsuri
