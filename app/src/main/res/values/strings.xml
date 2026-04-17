@@ -474,6 +474,23 @@
     <string name="wireguard_local_address">Local Address</string>
     <string name="wireguard_public_key">Peer Public Key</string>
     <string name="wireguard_psk">Peer Pre-Shared Key</string>
+    <string name="amneziawg_category">AmneziaWG 2.0</string>
+    <string name="amneziawg_jc">Jc (junk packets)</string>
+    <string name="amneziawg_jmin">Jmin (junk min size)</string>
+    <string name="amneziawg_jmax">Jmax (junk max size)</string>
+    <string name="amneziawg_s1">S1</string>
+    <string name="amneziawg_s2">S2</string>
+    <string name="amneziawg_s3">S3</string>
+    <string name="amneziawg_s4">S4</string>
+    <string name="amneziawg_h1">H1</string>
+    <string name="amneziawg_h2">H2</string>
+    <string name="amneziawg_h3">H3</string>
+    <string name="amneziawg_h4">H4</string>
+    <string name="amneziawg_i1">I1</string>
+    <string name="amneziawg_i2">I2</string>
+    <string name="amneziawg_i3">I3</string>
+    <string name="amneziawg_i4">I4</string>
+    <string name="amneziawg_i5">I5</string>
 
     <string name="cloudflare_wrap" translatable="false">Cloudflare Warp</string>
     <string name="warp_license">CloudFlare Warp is a free WireGuard VPN provider. By using it, you
