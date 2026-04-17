@@ -823,6 +823,22 @@ object RawUpdater : GroupUpdater() {
         bean.localAddress = localAddresses.flatMap { it.split(",") }.joinToString("\n")
         bean.privateKey = iface["PrivateKey"]
         bean.mtu = iface["MTU"]?.toIntOrNull()
+        bean.jc = iface["Jc"] ?: iface["JC"] ?: ""
+        bean.jmin = iface["Jmin"] ?: iface["JMIN"] ?: ""
+        bean.jmax = iface["Jmax"] ?: iface["JMAX"] ?: ""
+        bean.s1 = iface["S1"] ?: ""
+        bean.s2 = iface["S2"] ?: ""
+        bean.s3 = iface["S3"] ?: ""
+        bean.s4 = iface["S4"] ?: ""
+        bean.h1 = iface["H1"] ?: ""
+        bean.h2 = iface["H2"] ?: ""
+        bean.h3 = iface["H3"] ?: ""
+        bean.h4 = iface["H4"] ?: ""
+        bean.i1 = iface["I1"] ?: ""
+        bean.i2 = iface["I2"] ?: ""
+        bean.i3 = iface["I3"] ?: ""
+        bean.i4 = iface["I4"] ?: ""
+        bean.i5 = iface["I5"] ?: ""
         val peers = ini.getAll("Peer")
         if (peers.isNullOrEmpty()) error("Missing 'Peer' selections")
         val beans = mutableListOf<WireGuardBean>()

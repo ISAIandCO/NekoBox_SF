@@ -18,6 +18,22 @@ public class WireGuardBean extends AbstractBean {
     public String peerPreSharedKey;
     public Integer mtu;
     public String reserved;
+    public String jc;
+    public String jmin;
+    public String jmax;
+    public String s1;
+    public String s2;
+    public String s3;
+    public String s4;
+    public String h1;
+    public String h2;
+    public String h3;
+    public String h4;
+    public String i1;
+    public String i2;
+    public String i3;
+    public String i4;
+    public String i5;
 
     @Override
     public void initializeDefaultValues() {
@@ -28,11 +44,27 @@ public class WireGuardBean extends AbstractBean {
         if (peerPreSharedKey == null) peerPreSharedKey = "";
         if (mtu == null) mtu = 1420;
         if (reserved == null) reserved = "";
+        if (jc == null) jc = "";
+        if (jmin == null) jmin = "";
+        if (jmax == null) jmax = "";
+        if (s1 == null) s1 = "";
+        if (s2 == null) s2 = "";
+        if (s3 == null) s3 = "";
+        if (s4 == null) s4 = "";
+        if (h1 == null) h1 = "";
+        if (h2 == null) h2 = "";
+        if (h3 == null) h3 = "";
+        if (h4 == null) h4 = "";
+        if (i1 == null) i1 = "";
+        if (i2 == null) i2 = "";
+        if (i3 == null) i3 = "";
+        if (i4 == null) i4 = "";
+        if (i5 == null) i5 = "";
     }
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(2);
+        output.writeInt(3);
         super.serialize(output);
         output.writeString(localAddress);
         output.writeString(privateKey);
@@ -40,6 +72,22 @@ public class WireGuardBean extends AbstractBean {
         output.writeString(peerPreSharedKey);
         output.writeInt(mtu);
         output.writeString(reserved);
+        output.writeString(jc);
+        output.writeString(jmin);
+        output.writeString(jmax);
+        output.writeString(s1);
+        output.writeString(s2);
+        output.writeString(s3);
+        output.writeString(s4);
+        output.writeString(h1);
+        output.writeString(h2);
+        output.writeString(h3);
+        output.writeString(h4);
+        output.writeString(i1);
+        output.writeString(i2);
+        output.writeString(i3);
+        output.writeString(i4);
+        output.writeString(i5);
     }
 
     @Override
@@ -52,6 +100,25 @@ public class WireGuardBean extends AbstractBean {
         peerPreSharedKey = input.readString();
         mtu = input.readInt();
         reserved = input.readString();
+        if (version >= 3) {
+            jc = input.readString();
+            jmin = input.readString();
+            jmax = input.readString();
+            s1 = input.readString();
+            s2 = input.readString();
+            s3 = input.readString();
+            s4 = input.readString();
+            h1 = input.readString();
+            h2 = input.readString();
+            h3 = input.readString();
+            h4 = input.readString();
+            i1 = input.readString();
+            i2 = input.readString();
+            i3 = input.readString();
+            i4 = input.readString();
+            i5 = input.readString();
+        }
+        initializeDefaultValues();
     }
 
     @Override

@@ -37,5 +37,21 @@ fun buildSingBoxOutboundWireguardBean(bean: WireGuardBean): SingBoxOptions.Outbo
         pre_shared_key = bean.peerPreSharedKey
         mtu = bean.mtu
         if (bean.reserved.isNotBlank()) reserved = genReserved(bean.reserved)
+        jc = bean.jc.trim().toIntOrNull()
+        jmin = bean.jmin.trim().toIntOrNull()
+        jmax = bean.jmax.trim().toIntOrNull()
+        s1 = bean.s1.trim().toIntOrNull()
+        s2 = bean.s2.trim().toIntOrNull()
+        s3 = bean.s3.trim().toIntOrNull()
+        s4 = bean.s4.trim().toIntOrNull()
+        h1 = bean.h1.trim().takeIf { it.isNotBlank() }
+        h2 = bean.h2.trim().takeIf { it.isNotBlank() }
+        h3 = bean.h3.trim().takeIf { it.isNotBlank() }
+        h4 = bean.h4.trim().takeIf { it.isNotBlank() }
+        i1 = bean.i1.trim().takeIf { it.isNotBlank() }
+        i2 = bean.i2.trim().takeIf { it.isNotBlank() }
+        i3 = bean.i3.trim().takeIf { it.isNotBlank() }
+        i4 = bean.i4.trim().takeIf { it.isNotBlank() }
+        i5 = bean.i5.trim().takeIf { it.isNotBlank() }
     }
 }
