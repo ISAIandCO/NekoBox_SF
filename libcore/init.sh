@@ -7,6 +7,18 @@ if [ -z "$GOPATH" ]; then
     GOPATH=$(go env GOPATH)
 fi
 
+# Ensure local replacements declared in libcore/go.mod exist.
+ROOT_DIR="$(cd ../.. && pwd)"
+SINGBOX_DIR="$ROOT_DIR/sing-box"
+LIBNEKO_DIR="$ROOT_DIR/libneko"
+
+if [ ! -d "$SINGBOX_DIR/.git" ]; then
+    git clone --depth 1 --branch def https://github.com/MatsuriDayo/sing-box.git "$SINGBOX_DIR"
+fi
+if [ ! -d "$LIBNEKO_DIR/.git" ]; then
+    git clone --depth 1 https://github.com/MatsuriDayo/libneko.git "$LIBNEKO_DIR"
+fi
+
 # gomobile upstream may require a newer Go toolchain for @latest installs.
 # Allow toolchain auto-switch in CI when GOTOOLCHAIN is pinned to local.
 if [ "${GOTOOLCHAIN}" = "local" ]; then
