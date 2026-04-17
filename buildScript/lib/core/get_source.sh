@@ -9,7 +9,7 @@ pushd ..
 ####
 
 if [ ! -d "sing-box" ]; then
-  git clone --no-checkout https://github.com/amnezia-vpn/amnezia-box.git sing-box
+  git clone --no-checkout https://github.com/starifly/sing-box.git
 fi
 pushd sing-box
 git checkout "$COMMIT_SING_BOX"
@@ -22,6 +22,17 @@ if [ ! -d "libneko" ]; then
 fi
 pushd libneko
 git checkout "$COMMIT_LIBNEKO"
+popd
+
+####
+
+if [ ! -d "wireguard-go" ]; then
+  git clone --no-checkout https://github.com/amnezia-vpn/amneziawg-go.git wireguard-go
+fi
+pushd wireguard-go
+git checkout "$COMMIT_WIREGUARD_GO"
+# Keep import path compatible with sing-box (expects github.com/sagernet/wireguard-go).
+sed -i '1s|^module .*|module github.com/sagernet/wireguard-go|' go.mod
 popd
 
 ####
