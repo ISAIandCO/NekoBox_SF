@@ -863,33 +863,83 @@ object RawUpdater : GroupUpdater() {
     private fun parseAmneziaVpnToWireGuard(text: String): String? {
         val raw = text.trim()
         if (!raw.startsWith("vpn://")) return null
+        val candidates = linkedSetOf<String>()
+        candidates.add(raw.substringAfter("vpn://").substringBefore("#").trim())
+        runCatching {
+            val uri = raw.toUri()
+            uri.getQueryParameter("data")?.let(candidates::add)
+            uri.getQueryParameter("config")?.let(candidates::add)
+            uri.getQueryParameter("key")?.let(candidates::add)
+            uri.lastPathSegment?.let(candidates::add)
+        }
+        return candidates.firstNotNullOfOrNull { candidate ->
+            decodeAmneziaPayloadToJson(candidate)?.let { root ->
+                extractWireGuardConfigFromAmneziaJson(root)
+            }
+        }
+    }
+
+    private fun decodeAmneziaPayloadToJson(candidateRaw: String): JSONObject? {
+        val candidate = candidateRaw.trim().removePrefix("/")
+        if (candidate.isBlank()) return null
+        val decodedCandidate = runCatching {
+            java.net.URLDecoder.decode(candidate, StandardCharsets.UTF_8.name())
+        }.getOrDefault(candidate)
+        val variants = linkedSetOf(decodedCandidate, decodedCandidate.substringAfterLast("/"))
+        for (variant in variants) {
+            val bytes = runCatching { Util.b64Decode(variant) }.getOrNull() ?: continue
+            val json = decodeAmneziaBytesToJson(bytes) ?: continue
+            val parsed = runCatching { JSONTokener(json).nextValue() as? JSONObject }.getOrNull()
+            if (parsed != null) return parsed
+        }
+        return null
+    }
+
+    private fun decodeAmneziaBytesToJson(bytes: ByteArray): String? {
+        val direct = String(bytes, StandardCharsets.UTF_8)
+        if (direct.trimStart().startsWith("{")) return direct
+        val zlibVariants = listOf(
+            bytes,
+            bytes.copyOfRange(4.coerceAtMost(bytes.size), bytes.size)
+        )
+        for (payload in zlibVariants) {
+            if (payload.isEmpty()) continue
+            val decoded = runCatching {
+                String(Util.zlibDecompress(payload), StandardCharsets.UTF_8)
+            }.getOrNull() ?: continue
+            if (decoded.trimStart().startsWith("{")) return decoded
+        }
+        return null
+    }
+
+    private fun extractWireGuardConfigFromAmneziaJson(root: JSONObject): String? {
         return runCatching {
-            val encoded = raw.substringAfter("vpn://").trim()
-            if (encoded.isBlank()) return null
-            val compressed = Util.b64Decode(encoded)
-            if (compressed.size <= 4) return null
-            val json = String(
-                Util.zlibDecompress(compressed.copyOfRange(4, compressed.size)),
-                StandardCharsets.UTF_8
-            )
-            val root = JSONTokener(json).nextValue() as? JSONObject ?: return null
             val dns1 = root.optString("dns1")
             val dns2 = root.optString("dns2")
             val containers = root.optJSONArray("containers") ?: return null
             for (index in containers.length() - 1 downTo 0) {
                 val container = containers.optJSONObject(index) ?: continue
-                val awg = container.optJSONObject("awg") ?: continue
-                val lastConfigRaw = awg.opt("last_config") ?: continue
-                val lastConfig = when (lastConfigRaw) {
-                    is JSONObject -> lastConfigRaw
-                    is String -> JSONTokener(lastConfigRaw).nextValue() as? JSONObject ?: continue
-                    else -> continue
+                val protocolConfig = sequenceOf("awg", "amneziawg", "wireguard")
+                    .mapNotNull { key -> container.optJSONObject(key) }
+                    .firstOrNull() ?: continue
+                val lastConfigRaw = protocolConfig.opt("last_config")
+                    ?: protocolConfig.opt("config")
+                    ?: continue
+                val config = when (lastConfigRaw) {
+                    is JSONObject -> lastConfigRaw.optString("config")
+                    is String -> {
+                        runCatching {
+                            (JSONTokener(lastConfigRaw).nextValue() as? JSONObject)?.optString("config")
+                                ?: lastConfigRaw
+                        }.getOrDefault(lastConfigRaw)
+                    }
+                    else -> ""
                 }
-                var config = lastConfig.optString("config")
                 if (config.isBlank()) continue
-                if (dns1.isNotBlank()) config = config.replace("\$PRIMARY_DNS", dns1)
-                if (dns2.isNotBlank()) config = config.replace("\$SECONDARY_DNS", dns2)
-                return config
+                var out = config
+                if (dns1.isNotBlank()) out = out.replace("\$PRIMARY_DNS", dns1)
+                if (dns2.isNotBlank()) out = out.replace("\$SECONDARY_DNS", dns2)
+                return out
             }
             null
         }.onFailure {
