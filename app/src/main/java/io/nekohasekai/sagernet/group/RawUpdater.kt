@@ -814,8 +814,26 @@ object RawUpdater : GroupUpdater() {
         }
 
         try {
-            return parseProxies(text.decodeBase64UrlSafe()).takeIf { it.isNotEmpty() }
-                ?: error("Not found")
+            val decoded = text.decodeBase64UrlSafe()
+            parseAmneziaVpnToWireGuard(decoded)?.let { awgConf ->
+                return parseWireGuard(normalizeWireGuardText(awgConf)).map {
+                    if (fileName.isNotBlank()) {
+                        it.name = fileName.removeSuffix(".vpn").removeSuffix(".conf")
+                    }
+                    it
+                }
+            }
+            extractEmbeddedWireGuardText(decoded)?.let { wgText ->
+                return parseWireGuard(wgText).map {
+                    if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
+                    it
+                }
+            }
+            val decodedJson = runCatching { JSONTokener(decoded).nextValue() }.getOrNull()
+            if (decodedJson != null) {
+                parseJSON(decodedJson).takeIf { it.isNotEmpty() }?.let { return it }
+            }
+            return parseProxies(decoded).takeIf { it.isNotEmpty() } ?: error("Not found")
         } catch (e: Exception) {
             Logs.w(e)
         }
