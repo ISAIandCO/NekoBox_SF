@@ -268,14 +268,14 @@ fun buildConfig(
                             selectedPackages.add("android")
                         }
                         exclude_package = selectedPackages
-                        tunBypassPackages.addAll(selectedPackages)
+                        tunBypassPackages.addAll(selectedPackages.filter { it != "android" })
                         PackageCache.awaitLoadSync()
                         selectedPackages.forEach {
+                            if (it == "android") return@forEach
                             PackageCache[it]?.takeIf { uid -> uid >= 1000 }?.let { uid ->
                                 tunBypassUserIds.add(uid)
                             }
                         }
-                        tunBypassUserIds.add(1000)
                     }
                 }
             })
