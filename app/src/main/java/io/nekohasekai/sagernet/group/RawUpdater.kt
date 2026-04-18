@@ -243,10 +243,21 @@ object RawUpdater : GroupUpdater() {
         val proxies = mutableListOf<AbstractBean>()
         parseAmneziaVpnToWireGuard(text)?.let { awgConf ->
             try {
-                proxies.addAll(parseWireGuard(awgConf).map {
+                proxies.addAll(parseWireGuard(normalizeWireGuardText(awgConf)).map {
                     if (fileName.isNotBlank()) {
                         it.name = fileName.removeSuffix(".vpn").removeSuffix(".conf")
                     }
+                    it
+                })
+                return proxies
+            } catch (e: Exception) {
+                Logs.w(e)
+            }
+        }
+        extractEmbeddedWireGuardText(text)?.let { wgText ->
+            try {
+                proxies.addAll(parseWireGuard(wgText).map {
+                    if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
                     it
                 })
                 return proxies
@@ -817,6 +828,36 @@ object RawUpdater : GroupUpdater() {
         }
 
         return null
+    }
+
+    private fun extractEmbeddedWireGuardText(text: String): String? {
+        val normalized = normalizeWireGuardText(text)
+        if (normalized.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) {
+            return normalized
+        }
+        return runCatching {
+            val json = JSONTokener(text.trim()).nextValue() as? JSONObject ?: return null
+            val config = json.optString("config")
+            if (config.isBlank()) return null
+            val configText = normalizeWireGuardText(config)
+            if (configText.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) configText else null
+        }.getOrNull()
+    }
+
+    private fun normalizeWireGuardText(text: String): String {
+        var normalized = text.trim()
+        if (!normalized.contains('\n') && normalized.contains("\\n")) {
+            normalized = normalized
+                .replace("\\r\\n", "\n")
+                .replace("\\n", "\n")
+                .replace("\\r", "\r")
+        }
+        if (!normalized.contains('\n') && normalized.contains("%0A", ignoreCase = true)) {
+            normalized = runCatching {
+                java.net.URLDecoder.decode(normalized, StandardCharsets.UTF_8.name())
+            }.getOrDefault(normalized)
+        }
+        return normalized
     }
 
     private fun parseAmneziaVpnToWireGuard(text: String): String? {
