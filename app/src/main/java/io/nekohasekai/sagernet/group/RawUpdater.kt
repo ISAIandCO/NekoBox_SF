@@ -36,6 +36,7 @@ import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.error.YAMLException
 import java.io.StringReader
 import androidx.core.net.toUri
+import java.nio.charset.StandardCharsets
 
 @Suppress("EXPERIMENTAL_API_USAGE")
 object RawUpdater : GroupUpdater() {
@@ -242,6 +243,19 @@ object RawUpdater : GroupUpdater() {
     suspend fun parseRaw(text: String, fileName: String = ""): List<AbstractBean>? {
 
         val proxies = mutableListOf<AbstractBean>()
+        parseAmneziaVpnToWireGuard(text)?.let { awgConf ->
+            try {
+                proxies.addAll(parseWireGuard(awgConf).map {
+                    if (fileName.isNotBlank()) {
+                        it.name = fileName.removeSuffix(".vpn").removeSuffix(".conf")
+                    }
+                    it
+                })
+                return proxies
+            } catch (e: Exception) {
+                Logs.w(e)
+            }
+        }
 
         if (text.contains("proxies:")) {
 
@@ -805,6 +819,43 @@ object RawUpdater : GroupUpdater() {
         }
 
         return null
+    }
+
+    private fun parseAmneziaVpnToWireGuard(text: String): String? {
+        val raw = text.trim()
+        if (!raw.startsWith("vpn://")) return null
+        return runCatching {
+            val encoded = raw.substringAfter("vpn://").trim()
+            if (encoded.isBlank()) return null
+            val compressed = Util.b64Decode(encoded)
+            if (compressed.size <= 4) return null
+            val json = String(
+                Util.zlibDecompress(compressed.copyOfRange(4, compressed.size)),
+                StandardCharsets.UTF_8
+            )
+            val root = JSONTokener(json).nextValue() as? JSONObject ?: return null
+            val dns1 = root.optString("dns1")
+            val dns2 = root.optString("dns2")
+            val containers = root.optJSONArray("containers") ?: return null
+            for (index in containers.length() - 1 downTo 0) {
+                val container = containers.optJSONObject(index) ?: continue
+                val awg = container.optJSONObject("awg") ?: continue
+                val lastConfigRaw = awg.opt("last_config") ?: continue
+                val lastConfig = when (lastConfigRaw) {
+                    is JSONObject -> lastConfigRaw
+                    is String -> JSONTokener(lastConfigRaw).nextValue() as? JSONObject ?: continue
+                    else -> continue
+                }
+                var config = lastConfig.optString("config")
+                if (config.isBlank()) continue
+                if (dns1.isNotBlank()) config = config.replace("\$PRIMARY_DNS", dns1)
+                if (dns2.isNotBlank()) config = config.replace("\$SECONDARY_DNS", dns2)
+                return config
+            }
+            null
+        }.onFailure {
+            Logs.w(it)
+        }.getOrNull()
     }
 
     fun clashCipher(cipher: String): String {
