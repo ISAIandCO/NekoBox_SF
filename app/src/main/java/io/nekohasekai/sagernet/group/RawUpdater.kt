@@ -254,6 +254,17 @@ object RawUpdater : GroupUpdater() {
                 Logs.w(e)
             }
         }
+        extractWireGuardFromAnyPayload(text)?.let { wgText ->
+            try {
+                proxies.addAll(parseWireGuard(wgText).map {
+                    if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
+                    it
+                })
+                return proxies
+            } catch (e: Exception) {
+                Logs.w(e)
+            }
+        }
         extractEmbeddedWireGuardText(text)?.let { wgText ->
             try {
                 proxies.addAll(parseWireGuard(wgText).map {
@@ -826,6 +837,12 @@ object RawUpdater : GroupUpdater() {
                     it
                 }
             }
+            extractWireGuardFromAnyPayload(decoded)?.let { wgText ->
+                return parseWireGuard(wgText).map {
+                    if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
+                    it
+                }
+            }
             extractEmbeddedWireGuardText(decoded)?.let { wgText ->
                 return parseWireGuard(wgText).map {
                     if (fileName.isNotBlank()) it.name = fileName.removeSuffix(".conf")
@@ -852,6 +869,43 @@ object RawUpdater : GroupUpdater() {
         }
 
         return null
+    }
+
+    private fun extractWireGuardFromAnyPayload(text: String): String? {
+        val normalized = normalizeWireGuardText(text)
+        if (normalized.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) return normalized
+        val json = runCatching { JSONTokener(text.trim()).nextValue() }.getOrNull() ?: return null
+        val candidates = mutableListOf<String>()
+        collectStringCandidates(json, candidates, 0)
+        for (candidate in candidates) {
+            parseAmneziaVpnToWireGuard(candidate)?.let { return normalizeWireGuardText(it) }
+            val c1 = normalizeWireGuardText(candidate)
+            if (c1.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) return c1
+            runCatching { candidate.decodeBase64UrlSafe() }.getOrNull()?.let { b64 ->
+                val c2 = normalizeWireGuardText(b64)
+                if (c2.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) return c2
+            }
+        }
+        return null
+    }
+
+    private fun collectStringCandidates(value: Any?, out: MutableList<String>, depth: Int) {
+        if (depth > 6 || value == null) return
+        when (value) {
+            is JSONObject -> {
+                value.keys().forEach { key ->
+                    collectStringCandidates(value.opt(key), out, depth + 1)
+                }
+            }
+
+            is JSONArray -> {
+                for (i in 0 until value.length()) {
+                    collectStringCandidates(value.opt(i), out, depth + 1)
+                }
+            }
+
+            is String -> out.add(value)
+        }
     }
 
     private fun extractEmbeddedWireGuardText(text: String): String? {
