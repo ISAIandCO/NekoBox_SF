@@ -783,7 +783,7 @@ object RawUpdater : GroupUpdater() {
             } catch (e: YAMLException) {
                 Logs.w(e)
             }
-        } else if (text.contains("[Interface]")) {
+        } else if (text.contains(Regex("""(?im)^\s*\[\s*interface\s*]"""))) {
             // wireguard
             try {
                 proxies.addAll(parseWireGuard(text).map {
@@ -866,31 +866,31 @@ object RawUpdater : GroupUpdater() {
     fun parseWireGuard(conf: String): List<WireGuardBean> {
         val (iface, peers) = parseWireGuardIni(conf)
         val bean = WireGuardBean().applyDefaultValues()
-        val localAddresses = iface["Address"]
+        val localAddresses = iface["address"]
         if (localAddresses.isNullOrEmpty()) error("Empty address in 'Interface' selection")
         bean.localAddress = localAddresses.flatMap { it.split(",") }.joinToString("\n") { it.trim() }
-        bean.privateKey = iface.first("PrivateKey")
-        bean.mtu = iface.first("MTU")?.toIntOrNull()
-        bean.jc = iface.first("Jc")?.toIntOrNull() ?: 0
-        bean.jmin = iface.first("Jmin")?.toIntOrNull() ?: 0
-        bean.jmax = iface.first("Jmax")?.toIntOrNull() ?: 0
-        bean.s1 = iface.first("S1")?.toIntOrNull() ?: 0
-        bean.s2 = iface.first("S2")?.toIntOrNull() ?: 0
-        bean.s3 = iface.first("S3")?.toIntOrNull() ?: 0
-        bean.s4 = iface.first("S4")?.toIntOrNull() ?: 0
-        bean.h1 = iface.first("H1") ?: ""
-        bean.h2 = iface.first("H2") ?: ""
-        bean.h3 = iface.first("H3") ?: ""
-        bean.h4 = iface.first("H4") ?: ""
-        bean.i1 = iface.first("I1") ?: ""
-        bean.i2 = iface.first("I2") ?: ""
-        bean.i3 = iface.first("I3") ?: ""
-        bean.i4 = iface.first("I4") ?: ""
-        bean.i5 = iface.first("I5") ?: ""
+        bean.privateKey = iface.first("privatekey")
+        bean.mtu = iface.first("mtu")?.toIntOrNull()
+        bean.jc = iface.first("jc")?.toIntOrNull() ?: 0
+        bean.jmin = iface.first("jmin")?.toIntOrNull() ?: 0
+        bean.jmax = iface.first("jmax")?.toIntOrNull() ?: 0
+        bean.s1 = iface.first("s1")?.toIntOrNull() ?: 0
+        bean.s2 = iface.first("s2")?.toIntOrNull() ?: 0
+        bean.s3 = iface.first("s3")?.toIntOrNull() ?: 0
+        bean.s4 = iface.first("s4")?.toIntOrNull() ?: 0
+        bean.h1 = iface.first("h1") ?: ""
+        bean.h2 = iface.first("h2") ?: ""
+        bean.h3 = iface.first("h3") ?: ""
+        bean.h4 = iface.first("h4") ?: ""
+        bean.i1 = iface.first("i1") ?: ""
+        bean.i2 = iface.first("i2") ?: ""
+        bean.i3 = iface.first("i3") ?: ""
+        bean.i4 = iface.first("i4") ?: ""
+        bean.i5 = iface.first("i5") ?: ""
         if (peers.isNullOrEmpty()) error("Missing 'Peer' selections")
         val beans = mutableListOf<WireGuardBean>()
         for (peer in peers) {
-            val endpoint = peer.first("Endpoint")
+            val endpoint = peer.first("endpoint")
             val (address, port) = parseWireGuardEndpoint(endpoint ?: "")
             if (address.isBlank() || port == null) {
                 continue
@@ -899,8 +899,8 @@ object RawUpdater : GroupUpdater() {
             val peerBean = bean.clone()
             peerBean.serverAddress = address
             peerBean.serverPort = port
-            peerBean.peerPublicKey = peer.first("PublicKey") ?: continue
-            peerBean.peerPreSharedKey = peer.first("PresharedKey") ?: peer.first("PreSharedKey")
+            peerBean.peerPublicKey = peer.first("publickey") ?: continue
+            peerBean.peerPreSharedKey = peer.first("presharedkey") ?: peer.first("preshared_key")
             beans.add(peerBean.applyDefaultValues())
         }
         if (beans.isEmpty()) error("Empty available peer list")
@@ -918,16 +918,16 @@ object RawUpdater : GroupUpdater() {
             val line = normalized.trim()
             if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) return@forEach
             if (line.startsWith("[") && line.endsWith("]")) {
-                current = when (line.substring(1, line.length - 1).trim()) {
-                    "Interface" -> iface
-                    "Peer" -> linkedMapOf<String, MutableList<String>>().also { peers.add(it) }
+                current = when (line.substring(1, line.length - 1).trim().lowercase()) {
+                    "interface" -> iface
+                    "peer" -> linkedMapOf<String, MutableList<String>>().also { peers.add(it) }
                     else -> null
                 }
                 return@forEach
             }
             val idx = line.indexOf("=")
             if (idx <= 0 || current == null) return@forEach
-            val key = line.substring(0, idx).trim()
+            val key = line.substring(0, idx).trim().lowercase()
             val value = line.substring(idx + 1).trim()
             current!!.getOrPut(key) { mutableListOf() }.add(value)
         }
