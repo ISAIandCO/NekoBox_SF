@@ -32,9 +32,9 @@ fun buildSingBoxOutboundWireguardBean(bean: WireGuardBean): SingBoxOptions.Outbo
         server = bean.serverAddress
         server_port = bean.serverPort
         local_address = bean.localAddress.listByLineOrComma()
-        private_key = bean.privateKey
-        peer_public_key = bean.peerPublicKey
-        pre_shared_key = bean.peerPreSharedKey
+        private_key = normalizeBase64Key(bean.privateKey)
+        peer_public_key = normalizeBase64Key(bean.peerPublicKey)
+        pre_shared_key = normalizeBase64Key(bean.peerPreSharedKey)
         mtu = bean.mtu
         if (bean.reserved.isNotBlank()) reserved = genReserved(bean.reserved)
         if (bean.isAmneziaWG) {
@@ -56,4 +56,11 @@ fun buildSingBoxOutboundWireguardBean(bean: WireGuardBean): SingBoxOptions.Outbo
             if (bean.i5.isNotBlank()) _hack_config_map["i5"] = bean.i5
         }
     }
+}
+
+private fun normalizeBase64Key(value: String): String {
+    if (value.isBlank()) return value
+    val trimmed = value.trim()
+    val remainder = trimmed.length % 4
+    return if (remainder == 0) trimmed else trimmed + "=".repeat(4 - remainder)
 }

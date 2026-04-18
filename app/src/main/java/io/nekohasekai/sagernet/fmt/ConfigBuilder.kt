@@ -231,7 +231,7 @@ fun buildConfig(
                 tag = "tun-in"
                 interface_name = "tun0"
                 stack = when (DataStore.tunImplementation) {
-                    TunImplementation.GVISOR -> "gvisor"
+                    TunImplementation.GVISOR -> "system"
                     TunImplementation.SYSTEM -> "system"
                     else -> "mixed"
                 }
