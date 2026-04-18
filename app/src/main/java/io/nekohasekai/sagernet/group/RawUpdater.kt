@@ -27,14 +27,12 @@ import moe.matsuri.nb4a.Protocols
 import moe.matsuri.nb4a.proxy.anytls.AnyTLSBean
 import moe.matsuri.nb4a.proxy.config.ConfigBean
 import moe.matsuri.nb4a.utils.Util
-import org.ini4j.Ini
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
 import org.yaml.snakeyaml.TypeDescription
 import org.yaml.snakeyaml.Yaml
 import org.yaml.snakeyaml.error.YAMLException
-import java.io.StringReader
 import androidx.core.net.toUri
 import java.nio.charset.StandardCharsets
 
@@ -866,48 +864,97 @@ object RawUpdater : GroupUpdater() {
     }
 
     fun parseWireGuard(conf: String): List<WireGuardBean> {
-        val ini = Ini(StringReader(conf))
-        val iface = ini["Interface"] ?: error("Missing 'Interface' selection")
+        val (iface, peers) = parseWireGuardIni(conf)
         val bean = WireGuardBean().applyDefaultValues()
-        val localAddresses = iface.getAll("Address")
+        val localAddresses = iface["Address"]
         if (localAddresses.isNullOrEmpty()) error("Empty address in 'Interface' selection")
-        bean.localAddress = localAddresses.flatMap { it.split(",") }.joinToString("\n")
-        bean.privateKey = iface["PrivateKey"]
-        bean.mtu = iface["MTU"]?.toIntOrNull()
-        bean.jc = iface["Jc"]?.toIntOrNull() ?: 0
-        bean.jmin = iface["Jmin"]?.toIntOrNull() ?: 0
-        bean.jmax = iface["Jmax"]?.toIntOrNull() ?: 0
-        bean.s1 = iface["S1"]?.toIntOrNull() ?: 0
-        bean.s2 = iface["S2"]?.toIntOrNull() ?: 0
-        bean.s3 = iface["S3"]?.toIntOrNull() ?: 0
-        bean.s4 = iface["S4"]?.toIntOrNull() ?: 0
-        bean.h1 = iface["H1"] ?: ""
-        bean.h2 = iface["H2"] ?: ""
-        bean.h3 = iface["H3"] ?: ""
-        bean.h4 = iface["H4"] ?: ""
-        bean.i1 = iface["I1"] ?: ""
-        bean.i2 = iface["I2"] ?: ""
-        bean.i3 = iface["I3"] ?: ""
-        bean.i4 = iface["I4"] ?: ""
-        bean.i5 = iface["I5"] ?: ""
-        val peers = ini.getAll("Peer")
+        bean.localAddress = localAddresses.flatMap { it.split(",") }.joinToString("\n") { it.trim() }
+        bean.privateKey = iface.first("PrivateKey")
+        bean.mtu = iface.first("MTU")?.toIntOrNull()
+        bean.jc = iface.first("Jc")?.toIntOrNull() ?: 0
+        bean.jmin = iface.first("Jmin")?.toIntOrNull() ?: 0
+        bean.jmax = iface.first("Jmax")?.toIntOrNull() ?: 0
+        bean.s1 = iface.first("S1")?.toIntOrNull() ?: 0
+        bean.s2 = iface.first("S2")?.toIntOrNull() ?: 0
+        bean.s3 = iface.first("S3")?.toIntOrNull() ?: 0
+        bean.s4 = iface.first("S4")?.toIntOrNull() ?: 0
+        bean.h1 = iface.first("H1") ?: ""
+        bean.h2 = iface.first("H2") ?: ""
+        bean.h3 = iface.first("H3") ?: ""
+        bean.h4 = iface.first("H4") ?: ""
+        bean.i1 = iface.first("I1") ?: ""
+        bean.i2 = iface.first("I2") ?: ""
+        bean.i3 = iface.first("I3") ?: ""
+        bean.i4 = iface.first("I4") ?: ""
+        bean.i5 = iface.first("I5") ?: ""
         if (peers.isNullOrEmpty()) error("Missing 'Peer' selections")
         val beans = mutableListOf<WireGuardBean>()
         for (peer in peers) {
-            val endpoint = peer["Endpoint"]
-            if (endpoint.isNullOrBlank() || !endpoint.contains(":")) {
+            val endpoint = peer.first("Endpoint")
+            val (address, port) = parseWireGuardEndpoint(endpoint ?: "")
+            if (address.isBlank() || port == null) {
                 continue
             }
 
             val peerBean = bean.clone()
-            peerBean.serverAddress = endpoint.substringBeforeLast(":")
-            peerBean.serverPort = endpoint.substringAfterLast(":").toIntOrNull() ?: continue
-            peerBean.peerPublicKey = peer["PublicKey"] ?: continue
-            peerBean.peerPreSharedKey = peer["PresharedKey"]
+            peerBean.serverAddress = address
+            peerBean.serverPort = port
+            peerBean.peerPublicKey = peer.first("PublicKey") ?: continue
+            peerBean.peerPreSharedKey = peer.first("PresharedKey") ?: peer.first("PreSharedKey")
             beans.add(peerBean.applyDefaultValues())
         }
         if (beans.isEmpty()) error("Empty available peer list")
         return beans
+    }
+
+    private fun parseWireGuardIni(
+        conf: String
+    ): Pair<MutableMap<String, MutableList<String>>, MutableList<MutableMap<String, MutableList<String>>>> {
+        val iface = linkedMapOf<String, MutableList<String>>()
+        val peers = mutableListOf<MutableMap<String, MutableList<String>>>()
+        var current: MutableMap<String, MutableList<String>>? = null
+        conf.lineSequence().forEach { rawLine ->
+            val normalized = rawLine.removePrefix("\uFEFF")
+            val line = normalized.trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) return@forEach
+            if (line.startsWith("[") && line.endsWith("]")) {
+                current = when (line.substring(1, line.length - 1).trim()) {
+                    "Interface" -> iface
+                    "Peer" -> linkedMapOf<String, MutableList<String>>().also { peers.add(it) }
+                    else -> null
+                }
+                return@forEach
+            }
+            val idx = line.indexOf("=")
+            if (idx <= 0 || current == null) return@forEach
+            val key = line.substring(0, idx).trim()
+            val value = line.substring(idx + 1).trim()
+            current!!.getOrPut(key) { mutableListOf() }.add(value)
+        }
+        if (iface.isEmpty()) error("Missing 'Interface' selection")
+        return iface to peers
+    }
+
+    private fun parseWireGuardEndpoint(endpoint: String): Pair<String, Int?> {
+        val raw = endpoint.trim()
+        if (raw.isBlank()) return "" to null
+        if (raw.startsWith("[")) {
+            val endBracket = raw.indexOf(']')
+            if (endBracket > 0 && endBracket + 2 <= raw.length && raw[endBracket + 1] == ':') {
+                val host = raw.substring(1, endBracket).trim()
+                val port = raw.substring(endBracket + 2).trim().toIntOrNull()
+                return host to port
+            }
+        }
+        val index = raw.lastIndexOf(':')
+        if (index <= 0 || index == raw.length - 1) return "" to null
+        val host = raw.substring(0, index).trim()
+        val port = raw.substring(index + 1).trim().toIntOrNull()
+        return host to port
+    }
+
+    private fun Map<String, MutableList<String>>.first(key: String): String? {
+        return this[key]?.firstOrNull()
     }
 
     fun parseJSON(json: Any): List<AbstractBean> {
