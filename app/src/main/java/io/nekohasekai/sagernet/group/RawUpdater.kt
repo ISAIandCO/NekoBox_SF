@@ -839,7 +839,7 @@ object RawUpdater : GroupUpdater() {
                     ?.takeIf { it.isNotEmpty() }
                     ?.let { return it }
             }
-            return parseProxies(decoded).takeIf { it.isNotEmpty() } ?: error("Not found")
+            parseProxies(decoded).takeIf { it.isNotEmpty() }?.let { return it }
         } catch (e: Exception) {
             Logs.w(e)
         }
