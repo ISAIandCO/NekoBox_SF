@@ -809,7 +809,10 @@ object RawUpdater : GroupUpdater() {
 
         try {
             val json = JSONTokener(text).nextValue()
-            return parseJSON(json)
+            runCatching { parseJSON(json) }
+                .getOrNull()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { return it }
         } catch (ignored: Exception) {
         }
 
@@ -831,7 +834,10 @@ object RawUpdater : GroupUpdater() {
             }
             val decodedJson = runCatching { JSONTokener(decoded).nextValue() }.getOrNull()
             if (decodedJson != null) {
-                parseJSON(decodedJson).takeIf { it.isNotEmpty() }?.let { return it }
+                runCatching { parseJSON(decodedJson) }
+                    .getOrNull()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let { return it }
             }
             return parseProxies(decoded).takeIf { it.isNotEmpty() } ?: error("Not found")
         } catch (e: Exception) {
