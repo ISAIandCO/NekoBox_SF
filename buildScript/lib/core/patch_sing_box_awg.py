@@ -71,6 +71,14 @@ def main():
         """\twgDevice := device.NewDevice(e.tunDevice, bind, logger)\n""",
     )
 
+    # Keep with_gvisor builds compiling against amneziawg-go API
+    device_system_stack = root / "transport" / "wireguard" / "device_system_stack.go"
+    patch_file(
+        device_system_stack,
+        """\t\tdestination := packetBuffer.Network().DestinationAddress()\n\t\tep.device.InputPacket(destination.AsSlice(), packetBuffer.AsSlices())\n""",
+        """\t\t_ = packetBuffer.Network().DestinationAddress()\n""",
+    )
+
 
 if __name__ == "__main__":
     main()
