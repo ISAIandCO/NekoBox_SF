@@ -13,6 +13,7 @@ if [ ! -d "sing-box" ]; then
 fi
 pushd sing-box
 git checkout "$COMMIT_SING_BOX"
+python3 ../NekoBox_SF/buildScript/lib/core/patch_sing_box_awg.py "$(pwd)"
 popd
 
 ####
@@ -22,6 +23,18 @@ if [ ! -d "libneko" ]; then
 fi
 pushd libneko
 git checkout "$COMMIT_LIBNEKO"
+popd
+
+####
+
+if [ ! -d "wireguard-go" ]; then
+  git clone --no-checkout https://github.com/amnezia-vpn/amneziawg-go.git wireguard-go
+fi
+pushd wireguard-go
+git checkout "$COMMIT_WIREGUARD_GO"
+# Keep import path compatible with sing-box (expects github.com/sagernet/wireguard-go).
+sed -i '1s|^module .*|module github.com/sagernet/wireguard-go|' go.mod
+grep -rl 'github.com/amnezia-vpn/amneziawg-go/' . | xargs sed -i 's|github.com/amnezia-vpn/amneziawg-go/|github.com/sagernet/wireguard-go/|g'
 popd
 
 ####
