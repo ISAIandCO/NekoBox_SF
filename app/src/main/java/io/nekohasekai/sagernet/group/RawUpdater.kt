@@ -276,6 +276,7 @@ object RawUpdater : GroupUpdater() {
                 Logs.w(e)
             }
         }
+        parseWireGuardLoose(text)?.let { return it }
 
         if (text.contains("proxies:")) {
 
@@ -849,6 +850,7 @@ object RawUpdater : GroupUpdater() {
                     it
                 }
             }
+            parseWireGuardLoose(decoded)?.let { return it }
             val decodedJson = runCatching { JSONTokener(decoded).nextValue() }.getOrNull()
             if (decodedJson != null) {
                 runCatching { parseJSON(decodedJson) }
@@ -869,6 +871,57 @@ object RawUpdater : GroupUpdater() {
         }
 
         return null
+    }
+
+    private fun parseWireGuardLoose(text: String): List<WireGuardBean>? {
+        val normalized = normalizeWireGuardText(text)
+        val keys = linkedMapOf<String, String>()
+        normalized.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.isBlank()) return@forEach
+            val idx = line.indexOf('=')
+            if (idx <= 0) return@forEach
+            val key = line.substring(0, idx).trim().lowercase()
+            val value = line.substring(idx + 1).trim()
+            if (value.isBlank()) return@forEach
+            if (key in setOf(
+                    "address", "privatekey", "publickey", "presharedkey", "preshared_key", "endpoint",
+                    "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4", "i1", "i2", "i3", "i4", "i5"
+                )
+            ) {
+                keys[key] = value
+            }
+        }
+        val address = keys["address"] ?: return null
+        val privateKey = keys["privatekey"] ?: return null
+        val publicKey = keys["publickey"] ?: return null
+        val endpoint = keys["endpoint"] ?: return null
+        val (host, port) = parseWireGuardEndpoint(endpoint)
+        if (host.isBlank() || port == null) return null
+        val bean = WireGuardBean().applyDefaultValues()
+        bean.localAddress = address.split(",").joinToString("\n") { it.trim() }
+        bean.privateKey = privateKey
+        bean.peerPublicKey = publicKey
+        bean.peerPreSharedKey = keys["presharedkey"] ?: keys["preshared_key"]
+        bean.serverAddress = host
+        bean.serverPort = port
+        bean.jc = keys["jc"]?.toIntOrNull() ?: 0
+        bean.jmin = keys["jmin"]?.toIntOrNull() ?: 0
+        bean.jmax = keys["jmax"]?.toIntOrNull() ?: 0
+        bean.s1 = keys["s1"]?.toIntOrNull() ?: 0
+        bean.s2 = keys["s2"]?.toIntOrNull() ?: 0
+        bean.s3 = keys["s3"]?.toIntOrNull() ?: 0
+        bean.s4 = keys["s4"]?.toIntOrNull() ?: 0
+        bean.h1 = keys["h1"] ?: ""
+        bean.h2 = keys["h2"] ?: ""
+        bean.h3 = keys["h3"] ?: ""
+        bean.h4 = keys["h4"] ?: ""
+        bean.i1 = keys["i1"] ?: ""
+        bean.i2 = keys["i2"] ?: ""
+        bean.i3 = keys["i3"] ?: ""
+        bean.i4 = keys["i4"] ?: ""
+        bean.i5 = keys["i5"] ?: ""
+        return listOf(bean.applyDefaultValues())
     }
 
     private fun extractWireGuardFromAnyPayload(text: String): String? {
