@@ -76,6 +76,7 @@ type BoxInstance struct {
 
 	v2api        *boxapi.SbV2rayServer
 	selector     *group.Selector
+	selectors    map[string]*group.Selector
 	pauseManager pause.Manager
 }
 
@@ -113,12 +114,18 @@ func NewSingBoxInstance(config string, localTransport LocalDNSTransport) (b *Box
 		Box:          instance,
 		cancel:       cancel,
 		pauseManager: service.FromContext[pause.Manager](ctx),
+		selectors:    make(map[string]*group.Selector),
 	}
 
-	// selector
-	if proxy, ok := b.Outbound().Outbound("proxy"); ok {
-		if selector, ok := proxy.(*group.Selector); ok {
-			b.selector = selector
+	// selectors
+	for _, outbound := range options.Outbounds {
+		if proxy, ok := b.Outbound().Outbound(outbound.Tag); ok {
+			if selector, ok := proxy.(*group.Selector); ok {
+				b.selectors[outbound.Tag] = selector
+				if outbound.Tag == "proxy" {
+					b.selector = selector
+				}
+			}
 		}
 	}
 
@@ -207,8 +214,14 @@ func (b *BoxInstance) QueryStats(tag, direct string) int64 {
 }
 
 func (b *BoxInstance) SelectOutbound(tag string) bool {
-	if b.selector != nil {
-		return b.selector.SelectOutbound(tag)
+	return b.SelectOutboundFor("proxy", tag)
+}
+
+func (b *BoxInstance) SelectOutboundFor(selectorTag string, tag string) bool {
+	if b.selectors != nil {
+		if selector, ok := b.selectors[selectorTag]; ok {
+			return selector.SelectOutbound(tag)
+		}
 	}
 	return false
 }

@@ -75,8 +75,14 @@ class ConfigBuildResult(
     var trafficMap: Map<String, List<ProxyEntity>>,
     var profileTagMap: Map<Long, String>,
     val selectorGroupId: Long,
+    val autoSelectGroups: List<AutoSelectGroup> = emptyList(),
 ) {
     data class IndexEntity(var chain: LinkedHashMap<Int, ProxyEntity>)
+    data class AutoSelectGroup(
+        val selectorTag: String,
+        val profiles: List<ProxyEntity>,
+        val tagMap: Map<Long, String>,
+    )
 }
 
 fun buildConfig(
@@ -166,6 +172,7 @@ fun buildConfig(
     val needSniff = DataStore.trafficSniffing > 0
     val needSniffOverride = DataStore.trafficSniffing == 2
     val externalIndexMap = ArrayList<IndexEntity>()
+    val autoSelectGroups = ArrayList<ConfigBuildResult.AutoSelectGroup>()
     val ipv6Mode = if (forTest) IPv6Mode.ENABLE else DataStore.ipv6Mode
 
     fun genDomainStrategy(noAsIs: Boolean): String {
@@ -327,28 +334,30 @@ fun buildConfig(
             val internalBean = entity.requireBean()
             if (entity.type == TYPE_AUTO_SELECT && internalBean is ChainBean) {
                 val beans = SagerDatabase.proxyDao.getEntities(internalBean.proxies).associateBy { it.id }
-                val childTags = internalBean.proxies.mapNotNull { proxyId ->
-                    beans[proxyId]?.let { buildChain(proxyId, it) }
+                val orderedProfiles = internalBean.proxies.mapNotNull { beans[it] }
+                val childTagMap = LinkedHashMap<Long, String>()
+                val childTags = orderedProfiles.map { child ->
+                    buildChain(child.id, child).also { childTagMap[child.id] = it }
                 }
                 val autoTag = readableTag(entity.displayName())
                 trafficMap[autoTag] = buildList {
                     add(entity)
-                    addAll(beans.values)
+                    addAll(orderedProfiles)
                 }
-                outbounds.add(Outbound_URLTestOptions().apply {
-                    type = "urltest"
+                autoSelectGroups.add(
+                    ConfigBuildResult.AutoSelectGroup(
+                        autoTag,
+                        orderedProfiles,
+                        childTagMap,
+                    )
+                )
+                val selectorOutbounds = childTags.ifEmpty { listOf(TAG_DIRECT) }
+                outbounds.add(Outbound_SelectorOptions().apply {
+                    type = "selector"
                     tag = autoTag
-                    outbounds = childTags
-                    url = DataStore.connectionTestURL
-                    // Health checks are intentionally sparse and stop when the
-                    // group remains idle for one check interval to avoid wasting battery while the device sleeps.
-                    interval = "10m"
-                    idle_timeout = "10m"
-                    // sing-box URLTest switches by latency only when the difference is greater than
-                    // tolerance. Use the uint16 maximum so every reachable proxy is treated as
-                    // equal and the user-defined outbound order is preserved; timed-out proxies
-                    // are skipped by URLTest and the next configured outbound is tried.
-                    tolerance = 65_535
+                    outbounds = selectorOutbounds
+                    default_ = selectorOutbounds.first()
+                    _hack_config_map["interrupt_exist_connections"] = true
                 })
                 return autoTag
             }
@@ -999,7 +1008,8 @@ fun buildConfig(
             proxy.id,
             trafficMap,
             tagMap,
-            if (buildSelector) group.id else -1L
+            if (buildSelector) group.id else -1L,
+            autoSelectGroups,
         )
     }
 }

@@ -154,11 +154,9 @@ public class SingBoxOptions {
 
         public String url;
 
-        public String interval;
+        public Long interval;
 
         public Integer tolerance;
-
-        public String idle_timeout;
 
     }
 
@@ -4452,11 +4450,9 @@ public class SingBoxOptions {
 
         public String url;
 
-        public String interval;
+        public Long interval;
 
         public Integer tolerance;
-
-        public String idle_timeout;
 
     }
 

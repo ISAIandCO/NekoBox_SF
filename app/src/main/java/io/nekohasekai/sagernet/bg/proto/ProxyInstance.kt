@@ -19,6 +19,7 @@ class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = 
 
     // for TrafficLooper
     var looper: TrafficLooper? = null
+    var autoSelectLooper: AutoSelectLooper? = null
 
     override fun buildConfig() {
         super.buildConfig()
@@ -52,6 +53,8 @@ class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = 
         runOnDefaultDispatcher {
             looper = service?.let { TrafficLooper(it.data, this) }
             looper?.start()
+            autoSelectLooper = AutoSelectLooper(this)
+            autoSelectLooper?.start()
         }
     }
 
@@ -60,6 +63,8 @@ class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = 
         runBlocking {
             looper?.stop()
             looper = null
+            autoSelectLooper?.stop()
+            autoSelectLooper = null
         }
     }
 }
