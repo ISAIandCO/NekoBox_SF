@@ -344,6 +344,10 @@ fun buildConfig(
                     // group remains idle for one check interval to avoid wasting battery while the device sleeps.
                     interval = "10m"
                     idle_timeout = "10m"
+                    // sing-box URLTest switches by latency only when the difference is greater than
+                    // tolerance. Use the uint16 maximum so every reachable proxy is treated as
+                    // equal and the user-defined outbound order is preserved; timed-out proxies
+                    // are skipped by URLTest and the next configured outbound is tried.
                     tolerance = 65_535
                 })
                 return autoTag
