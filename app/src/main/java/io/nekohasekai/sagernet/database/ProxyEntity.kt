@@ -104,8 +104,10 @@ data class ProxyEntity(
         const val TYPE_NEKO = 999
 
         const val TYPE_CHAIN = 8
+        const val TYPE_AUTO_SELECT = 24
 
         val chainName by lazy { app.getString(R.string.proxy_chain) }
+        val autoSelectName by lazy { app.getString(R.string.proxy_auto_select) }
 
         @JvmField
         val CREATOR = object : CREATOR<ProxyEntity>() {
@@ -185,7 +187,7 @@ data class ProxyEntity(
             TYPE_JUICITY -> juicityBean = KryoConverters.juicityDeserialize(byteArray)
             TYPE_SHADOWTLS -> shadowTLSBean = KryoConverters.shadowTLSDeserialize(byteArray)
             TYPE_ANYTLS -> anyTLSBean = KryoConverters.anyTLSDeserialize(byteArray)
-            TYPE_CHAIN -> chainBean = KryoConverters.chainDeserialize(byteArray)
+            TYPE_CHAIN, TYPE_AUTO_SELECT -> chainBean = KryoConverters.chainDeserialize(byteArray)?.apply { autoSelect = type == TYPE_AUTO_SELECT }
             TYPE_NEKO -> nekoBean = KryoConverters.nekoDeserialize(byteArray)
             TYPE_CONFIG -> configBean = KryoConverters.configDeserialize(byteArray)
         }
@@ -209,6 +211,7 @@ data class ProxyEntity(
         TYPE_SHADOWTLS -> "ShadowTLS"
         TYPE_ANYTLS -> "AnyTLS"
         TYPE_CHAIN -> chainName
+        TYPE_AUTO_SELECT -> autoSelectName
         TYPE_NEKO -> nekoBean!!.displayType()
         TYPE_CONFIG -> configBean!!.displayType()
         else -> "Undefined type $type"
@@ -244,7 +247,7 @@ data class ProxyEntity(
 
     fun haveLink(): Boolean {
         return when (type) {
-            TYPE_CHAIN -> false
+            TYPE_CHAIN, TYPE_AUTO_SELECT -> false
             else -> true
         }
     }
@@ -512,7 +515,7 @@ data class ProxyEntity(
             }
 
             is ChainBean -> {
-                type = TYPE_CHAIN
+                type = if (bean.autoSelect) TYPE_AUTO_SELECT else TYPE_CHAIN
                 chainBean = bean
             }
 
@@ -550,7 +553,7 @@ data class ProxyEntity(
                 TYPE_JUICITY -> JuicitySettingsActivity::class.java
                 TYPE_SHADOWTLS -> ShadowTLSSettingsActivity::class.java
                 TYPE_ANYTLS -> AnyTLSSettingsActivity::class.java
-                TYPE_CHAIN -> ChainSettingsActivity::class.java
+                TYPE_CHAIN, TYPE_AUTO_SELECT -> ChainSettingsActivity::class.java
                 TYPE_CONFIG -> ConfigSettingActivity::class.java
                 else -> throw IllegalArgumentException()
             }
