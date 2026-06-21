@@ -238,7 +238,7 @@ data class ProxyEntity(
             TYPE_JUICITY -> juicityBean
             TYPE_SHADOWTLS -> shadowTLSBean
             TYPE_ANYTLS -> anyTLSBean
-            TYPE_CHAIN -> chainBean
+            TYPE_CHAIN, TYPE_AUTO_SELECT -> chainBean
             TYPE_NEKO -> nekoBean
             TYPE_CONFIG -> configBean
             else -> error("Undefined type $type")
