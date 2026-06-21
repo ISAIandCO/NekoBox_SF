@@ -17,12 +17,14 @@ public class ChainBean extends InternalBean {
 
     public List<Long> proxies;
 
+    public boolean autoSelect;
+
     @Override
     public String displayName() {
         if (JavaUtil.isNotBlank(name)) {
             return name;
         } else {
-            return "Chain " + Math.abs(hashCode());
+            return (autoSelect ? "Auto Select " : "Chain ") + Math.abs(hashCode());
         }
     }
 
@@ -38,7 +40,8 @@ public class ChainBean extends InternalBean {
 
     @Override
     public void serialize(ByteBufferOutput output) {
-        output.writeInt(1);
+        output.writeInt(2);
+        output.writeBoolean(autoSelect);
         output.writeInt(proxies.size());
         for (Long proxy : proxies) {
             output.writeLong(proxy);
@@ -51,6 +54,9 @@ public class ChainBean extends InternalBean {
         if (version < 1) {
             input.readString();
             input.readInt();
+        }
+        if (version >= 2) {
+            autoSelect = input.readBoolean();
         }
         int length = input.readInt();
         proxies = new ArrayList<>();
