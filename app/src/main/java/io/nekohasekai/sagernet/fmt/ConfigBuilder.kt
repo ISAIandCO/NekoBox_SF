@@ -340,10 +340,10 @@ fun buildConfig(
                     tag = autoTag
                     outbounds = childTags
                     url = DataStore.connectionTestURL
-                    // Health checks are intentionally sparse and stop soon after the
-                    // group becomes idle to avoid wasting battery while the device sleeps.
+                    // Health checks are intentionally sparse and stop when the
+                    // group remains idle for one check interval to avoid wasting battery while the device sleeps.
                     interval = "10m"
-                    idle_timeout = "1m"
+                    idle_timeout = "10m"
                     tolerance = 65_535
                 })
                 return autoTag
