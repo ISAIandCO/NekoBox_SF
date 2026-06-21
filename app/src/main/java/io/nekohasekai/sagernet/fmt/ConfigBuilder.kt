@@ -344,7 +344,7 @@ fun buildConfig(
                     // group becomes idle to avoid wasting battery while the device sleeps.
                     interval = "10m"
                     idle_timeout = "1m"
-                    tolerance = Int.MAX_VALUE
+                    tolerance = 65_535
                 })
                 return autoTag
             }
