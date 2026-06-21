@@ -31,7 +31,9 @@ import moe.matsuri.nb4a.Protocols.getProtocolColor
 
 class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout_chain_settings) {
 
-    override fun createEntity() = ChainBean()
+    override fun createEntity() = ChainBean().apply {
+        autoSelect = intent.getIntExtra(ProfileSettingsActivity.EXTRA_PROFILE_TYPE, ProxyEntity.TYPE_CHAIN) == ProxyEntity.TYPE_AUTO_SELECT
+    }
 
     val proxyList = ArrayList<ProxyEntity>()
 
@@ -43,6 +45,14 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
     override fun ChainBean.serialize() {
         name = DataStore.profileName
         proxies = proxyList.map { it.id }
+        autoSelect = if (DataStore.editingId == 0L) {
+            intent.getIntExtra(
+                ProfileSettingsActivity.EXTRA_PROFILE_TYPE,
+                ProxyEntity.TYPE_CHAIN,
+            ) == ProxyEntity.TYPE_AUTO_SELECT
+        } else {
+            ProfileManager.getProfile(DataStore.editingId)?.type == ProxyEntity.TYPE_AUTO_SELECT
+        }
         initializeDefaultValues()
     }
 
@@ -61,7 +71,15 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        supportActionBar!!.setTitle(R.string.chain_settings)
+        val profileType = if (DataStore.editingId == 0L) {
+            intent.getIntExtra(ProfileSettingsActivity.EXTRA_PROFILE_TYPE, ProxyEntity.TYPE_CHAIN)
+        } else {
+            ProfileManager.getProfile(DataStore.editingId)?.type
+        }
+        supportActionBar!!.setTitle(
+            if (profileType == ProxyEntity.TYPE_AUTO_SELECT) R.string.auto_select_settings
+            else R.string.chain_settings
+        )
         configurationList = findViewById(R.id.configuration_list)
         layoutManager = FixedLinearLayoutManager(configurationList)
         configurationList.layoutManager = layoutManager
@@ -189,7 +207,8 @@ class ChainSettingsActivity : ProfileSettingsActivity<ChainBean>(R.layout.layout
     }
 
     fun testProfileContains(profile: ProxyEntity, anotherProfile: ProxyEntity): Boolean {
-        if (profile.type != 8 || anotherProfile.type != 8) return false
+        if (profile.type != ProxyEntity.TYPE_CHAIN && profile.type != ProxyEntity.TYPE_AUTO_SELECT) return false
+        if (anotherProfile.type != ProxyEntity.TYPE_CHAIN && anotherProfile.type != ProxyEntity.TYPE_AUTO_SELECT) return false
         if (profile.id == anotherProfile.id) return true
         val proxies = profile.chainBean!!.proxies
         if (proxies.contains(anotherProfile.id)) return true

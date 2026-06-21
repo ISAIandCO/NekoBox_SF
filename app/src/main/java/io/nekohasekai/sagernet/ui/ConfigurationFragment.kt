@@ -503,6 +503,12 @@ class ConfigurationFragment @JvmOverloads constructor(
                 startActivity(Intent(requireActivity(), ChainSettingsActivity::class.java))
             }
 
+            R.id.action_new_auto_select -> {
+                startActivity(Intent(requireActivity(), ChainSettingsActivity::class.java).apply {
+                    putExtra(ProfileSettingsActivity.EXTRA_PROFILE_TYPE, ProxyEntity.TYPE_AUTO_SELECT)
+                })
+            }
+
             R.id.action_update_subscription -> {
                 val group = DataStore.currentGroup()
                 if (group.type != GroupType.SUBSCRIPTION) {
@@ -1879,7 +1885,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     popup.show()
                 }
 
-                val selectOrChain = select || proxyEntity.type == ProxyEntity.TYPE_CHAIN
+                val selectOrChain = select || (proxyEntity.type == ProxyEntity.TYPE_CHAIN || proxyEntity.type == ProxyEntity.TYPE_AUTO_SELECT)
                 val isDoubleColumn = DataStore.groupLayoutMode == 1
                 
                 if (isDoubleColumn) {
@@ -1910,7 +1916,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                         selectedView.visibility = if (selected) View.VISIBLE else View.INVISIBLE
                     }
 
-                    if (!(select || proxyEntity.type == ProxyEntity.TYPE_CHAIN)) {
+                    if (!(select || (proxyEntity.type == ProxyEntity.TYPE_CHAIN || proxyEntity.type == ProxyEntity.TYPE_AUTO_SELECT))) {
                         onMainDispatcher {
                             shareLayer.setBackgroundColor(Color.TRANSPARENT)
                             shareButton.setImageResource(R.drawable.ic_social_share)

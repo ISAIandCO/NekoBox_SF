@@ -5,6 +5,7 @@ import io.nekohasekai.sagernet.*
 import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.database.ProxyEntity.Companion.TYPE_AUTO_SELECT
 import io.nekohasekai.sagernet.database.ProxyEntity.Companion.TYPE_CONFIG
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.fmt.ConfigBuildResult.IndexEntity
@@ -107,7 +108,7 @@ fun buildConfig(
 
     fun ProxyEntity.resolveChainInternal(): MutableList<ProxyEntity> {
         val bean = requireBean()
-        if (bean is ChainBean) {
+        if (bean is ChainBean && type != TYPE_AUTO_SELECT) {
             val beans = SagerDatabase.proxyDao.getEntities(bean.proxies)
             val beansMap = beans.associateBy { it.id }
             val beanList = ArrayList<ProxyEntity>()
@@ -323,6 +324,31 @@ fun buildConfig(
 
         @Suppress("UNCHECKED_CAST")
         fun buildChain(chainId: Long, entity: ProxyEntity): String {
+            val internalBean = entity.requireBean()
+            if (entity.type == TYPE_AUTO_SELECT && internalBean is ChainBean) {
+                val beans = SagerDatabase.proxyDao.getEntities(internalBean.proxies).associateBy { it.id }
+                val childTags = internalBean.proxies.mapNotNull { proxyId ->
+                    beans[proxyId]?.let { buildChain(proxyId, it) }
+                }
+                val autoTag = readableTag(entity.displayName())
+                trafficMap[autoTag] = buildList {
+                    add(entity)
+                    addAll(beans.values)
+                }
+                outbounds.add(Outbound_URLTestOptions().apply {
+                    type = "urltest"
+                    tag = autoTag
+                    outbounds = childTags
+                    url = DataStore.connectionTestURL
+                    // Health checks are intentionally sparse and stop soon after the
+                    // group becomes idle to avoid wasting battery while the device sleeps.
+                    interval = "10m"
+                    idle_timeout = "1m"
+                    tolerance = Int.MAX_VALUE
+                })
+                return autoTag
+            }
+
             val profileList = entity.resolveChain()
             val chainTrafficSet = HashSet<ProxyEntity>().apply {
                 plusAssign(profileList)

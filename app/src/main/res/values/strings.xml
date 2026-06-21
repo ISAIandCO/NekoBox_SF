@@ -240,6 +240,8 @@
     <string name="action_tuic" translatable="false">TUIC</string>
     <string name="action_juicity" translatable="false">Juicity</string>
     <string name="proxy_chain">Proxy Chain</string>
+    <string name="proxy_auto_select">Auto Select Proxy</string>
+    <string name="auto_select_settings">Auto Select Settings</string>
     <string name="custom_config">Custom Config</string>
     <string name="balancer">Balancer</string>
     <string name="balancer_settings">Balancer Settings</string>
