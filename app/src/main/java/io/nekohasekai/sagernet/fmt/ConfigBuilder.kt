@@ -11,6 +11,7 @@ import io.nekohasekai.sagernet.fmt.ConfigBuildResult.IndexEntity
 import io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean
 import io.nekohasekai.sagernet.fmt.hysteria.buildSingBoxOutboundHysteriaBean
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
+import io.nekohasekai.sagernet.fmt.internal.FastestCandidateResolver
 import io.nekohasekai.sagernet.fmt.juicity.JuicityBean
 import io.nekohasekai.sagernet.fmt.juicity.buildSingBoxOutboundJuicityBean
 import io.nekohasekai.sagernet.fmt.shadowsocks.ShadowsocksBean
@@ -517,11 +518,15 @@ fun buildConfig(
             }
 
             val bean = entity.chainBean ?: error("Missing dynamic profile data")
-            if (bean.proxies.size != bean.proxies.distinct().size) {
-                error("Dynamic proxy profile contains duplicate candidates")
+            val candidates = if (entity.type == ProxyEntity.TYPE_FASTEST) {
+                FastestCandidateResolver.resolve(bean)
+            } else {
+                if (bean.proxies.size != bean.proxies.distinct().size) {
+                    error("Dynamic proxy profile contains duplicate candidates")
+                }
+                val profilesById = SagerDatabase.proxyDao.getEntities(bean.proxies).associateBy { it.id }
+                bean.proxies.mapNotNull(profilesById::get)
             }
-            val profilesById = SagerDatabase.proxyDao.getEntities(bean.proxies).associateBy { it.id }
-            val candidates = bean.proxies.mapNotNull(profilesById::get)
             if (candidates.isEmpty()) {
                 error("Dynamic proxy profile has no available candidates")
             }
