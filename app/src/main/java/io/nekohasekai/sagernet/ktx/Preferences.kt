@@ -46,7 +46,7 @@ fun PreferenceDataStore.stringToLong(
     name: String,
     defaultValue: () -> Long = { 0L },
 ) = PreferenceProxy(name, defaultValue, { key, default ->
-    getString(key, "$default")?.toLongOrNull() ?: default
+    getString(key, null)?.toLongOrNull() ?: getLong(key, default)
 }, { key, value -> putString(key, "$value") })
 
 class PreferenceProxy<T>(
