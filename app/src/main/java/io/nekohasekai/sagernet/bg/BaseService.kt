@@ -79,6 +79,7 @@ class BaseService {
         }
         var closeReceiverRegistered = false
         var networkRestartJob: Job? = null
+        var restartAfterStop = false
 
         val binder = Binder(this)
         var connectingJob: Job? = null
@@ -176,6 +177,12 @@ class BaseService {
         val tag: String
         fun createNotification(profileName: String): ServiceNotification
 
+        fun ensureForegroundNotification(profileName: String): ServiceNotification {
+            return data.notification ?: createNotification(profileName).also {
+                data.notification = it
+            }
+        }
+
         fun onBind(intent: Intent): IBinder? =
             if (intent.action == Action.SERVICE) data.binder else null
 
@@ -246,7 +253,11 @@ class BaseService {
             DataStore.baseService = null
             DataStore.vpnService = null
 
-            if (data.state == State.Stopping) return
+            if (data.state == State.Stopping) {
+                if (restart) data.restartAfterStop = true
+                return
+            }
+            data.restartAfterStop = restart
             data.notification?.destroy()
             data.notification = null
             this as Service
@@ -269,7 +280,9 @@ class BaseService {
                 // change the state
                 data.changeState(State.Stopped, msg)
                 // stop the service if nothing has bound to it
-                if (restart) startRunner() else {
+                val restartAfterStop = data.restartAfterStop
+                data.restartAfterStop = false
+                if (restartAfterStop) startRunner() else {
                     stopSelf()
                 }
             }
@@ -348,14 +361,26 @@ class BaseService {
             DataStore.baseService = this
 
             val data = data
-            if (data.state != State.Stopped) return Service.START_NOT_STICKY
-            val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
             this as Context
+            if (data.state != State.Stopped) {
+                // A foreground-service start can race with asynchronous shutdown. It must still
+                // enter the foreground immediately, and the requested start must not be lost.
+                ensureForegroundNotification(
+                    data.proxy?.displayProfileName ?: getString(R.string.app_name)
+                )
+                if (data.state == State.Stopping) data.restartAfterStop = true
+                return Service.START_NOT_STICKY
+            }
+
+            // A database read must not consume the foreground-service promotion deadline.
+            val notification = ensureForegroundNotification(getString(R.string.app_name))
+            val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
             if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
-                data.notification = createNotification("")
                 stopRunner(false, getString(R.string.profile_empty))
                 return Service.START_NOT_STICKY
             }
+
+            val notificationTitle = ServiceNotification.genTitle(profile)
 
             val proxy = ProxyInstance(profile, this)
             data.proxy = proxy
@@ -394,7 +419,7 @@ class BaseService {
                 start = CoroutineStart.LAZY,
             ) {
                 try {
-                    data.notification = createNotification(ServiceNotification.genTitle(profile))
+                    notification.postNotificationTitle(notificationTitle)
 
                     Executable.killAll()    // clean up old processes
                     preInit()
