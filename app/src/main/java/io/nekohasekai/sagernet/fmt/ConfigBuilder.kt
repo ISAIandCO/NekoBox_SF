@@ -55,6 +55,15 @@ const val TAG_BLOCK = "block"
 const val TAG_FRAGMENT = "fragment"
 
 const val LOCALHOST = "127.0.0.1"
+private val GROUP_OUTBOUND_TYPES = setOf("selector", "urltest")
+
+internal fun SingBoxOption.applyDomainStrategyIfSupported(domainStrategy: String) {
+    val outboundType = asMap()["type"] as? String
+    if (outboundType !in GROUP_OUTBOUND_TYPES) {
+        _hack_config_map["domain_strategy"] = domainStrategy
+    }
+}
+
 private val ANDROID_DNS_PACKAGES = listOf(
     "android",
     "com.android.resolv",
@@ -441,11 +450,11 @@ fun buildConfig(
                             domainListDNSDirectForce.add("full:$serverAddress")
                         }
                     }
-                    _hack_config_map["domain_strategy"] =
-                        if (forTest) "" else defaultServerDomainStrategy
-
-                    _hack_config_map["tag"] = tagOut
                     _hack_custom_config = bean.customOutboundJson
+                    applyDomainStrategyIfSupported(
+                        if (forTest) "" else defaultServerDomainStrategy
+                    )
+                    _hack_config_map["tag"] = tagOut
                 }
 
                 bean.finalAddress = bean.serverAddress
