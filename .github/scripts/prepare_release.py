@@ -21,16 +21,18 @@ def prepare_release(root, tag, title, run_number, commit_message):
     title = title.strip() or f'NekoBox_SF {version}'
     if any(char in title for char in '\r\n\0'):
         raise ValueError('Release title must be one line')
-    # Gradle multiplies this property by five. Each new workflow run must
-    # produce an installable update even when nb4a.properties is unchanged.
-    version_code = int(properties['VERSION_CODE']) + run_number
+    # Independent of the checked-out tag/branch's old VERSION_CODE. Gradle
+    # multiplies by five. Keep this floor fixed; the workflow run number grows.
+    version_code = 1_000_000 + run_number
     if not 0 < version_code * 5 <= 2_100_000_000:
         raise ValueError('Android version code is out of range')
     for key, value in {'VERSION_NAME': version, 'PRE_VERSION_NAME': version, 'VERSION_CODE': str(version_code)}.items():
         source, count = re.subn(rf'^{key}=.*$', f'{key}={value}', source, flags=re.M)
         if count != 1:
             raise ValueError(f'Expected exactly one {key} property')
-    notes = commit_message.strip() or 'Описание изменений будет добавлено позже.'
+    changelog = root / 'docs' / 'releases' / f'{version}.md'
+    notes = changelog.read_text().strip() if changelog.is_file() else commit_message.strip()
+    notes = notes or 'Описание изменений будет добавлено позже.'
     (root / 'release-notes.txt').write_text(f'Изменения в версии {version}:\n\n{notes}\n')
     properties_path.write_text(source)
     return {'RELEASE_TAG': tag, 'RELEASE_VERSION': version, 'RELEASE_TITLE': title}
@@ -39,8 +41,11 @@ def prepare_release(root, tag, title, run_number, commit_message):
 if __name__ == '__main__':
     root = Path(__file__).resolve().parents[2]
     tag = os.environ.get('INPUT_TAG', '').strip()
-    if not tag and os.environ.get('GITHUB_REF_TYPE') == 'tag':
-        tag = os.environ['GITHUB_REF_NAME']
+    if os.environ.get('GITHUB_REF_TYPE') == 'tag':
+        ref_tag = os.environ['GITHUB_REF_NAME']
+        if tag and tag.removeprefix('v') != ref_tag.removeprefix('v'):
+            raise ValueError('Input version does not match the checked-out Git tag')
+        tag = ref_tag
     message = subprocess.check_output(['git', 'log', '-1', '--format=%B'], cwd=root, text=True)
     metadata = prepare_release(root, tag, os.environ.get('INPUT_TITLE', ''), os.environ['GITHUB_RUN_NUMBER'], message)
     with open(os.environ['GITHUB_ENV'], 'a') as output:

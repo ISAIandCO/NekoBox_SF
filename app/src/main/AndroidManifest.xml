@@ -74,6 +74,7 @@
             android:resource="@xml/shortcuts" />
 
         <activity android:name="io.nekohasekai.sagernet.ui.NetworkProfilesActivity" android:exported="false" />
+        <activity android:name="io.nekohasekai.sagernet.ui.WarpSettingsActivity" android:exported="false" />
         <activity
             android:name="io.nekohasekai.sagernet.ui.BlankActivity"
             android:configChanges="uiMode" />

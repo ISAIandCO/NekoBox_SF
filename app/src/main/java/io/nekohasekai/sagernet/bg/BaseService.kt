@@ -181,12 +181,30 @@ class BaseService {
             return proxy.box.runtimeDiagnostics(historyQuery)
         }
 
+        override fun warpOperation(action: String, identity: String, amnezia: Boolean): String {
+            check(android.os.Binder.getCallingUid() == android.os.Process.myUid()) { "Caller is not the application" }
+            return try {
+                val current = data ?: error("Service is unavailable")
+                check(current.state == State.Connected || current.state == State.Stopped) { "Wait for the VPN connection to finish" }
+                if (action == "register") check(DataStore.warpTermsAccepted) { "Accept the Cloudflare WARP terms first" }
+                val result = when (action) {
+                    "register" -> Libcore.warpRegister(amnezia)
+                    "refresh" -> Libcore.warpRefresh(identity)
+                    "revoke" -> { Libcore.warpRevoke(identity); "{}" }
+                    else -> error("Unknown WARP operation")
+                }
+                result
+            } catch (e: Exception) {
+                org.json.JSONObject().put("error", e.localizedMessage ?: "WARP request failed").toString()
+            }
+        }
+
         override fun networkProbe(expectedProfileId: Long, direct: Boolean, domain: String, dnsTarget: String): String {
             check(android.os.Binder.getCallingUid() == android.os.Process.myUid()) { "Caller is not the application" }
             val current = data ?: error("Service is unavailable")
             val proxy = current.proxy ?: error("Core is not running")
             check(current.state == State.Connected && proxy.isInitialized() && DataStore.currentProfile == expectedProfileId) { "Profile is no longer active" }
-            val tag = if (direct) "direct" else if (proxy.config.selectorGroupId > 0) "proxy"
+            val tag = if (direct) "direct" else proxy.config.mainOutboundTag ?: if (proxy.config.selectorGroupId > 0) "proxy"
                 else proxy.config.profileTagMap[proxy.profile.id] ?: error("Proxy outbound is unavailable")
             return proxy.box.networkProbe(tag, domain, dnsTarget)
         }

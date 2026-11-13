@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="warp_title">Cloudflare WARP</string>
+    <string name="warp_summary">Выход через WARP: устройство → выбранный VPN → WARP → интернет. Применяется к маршрутам через текущий VPN. Прямые маршруты, локальная сеть, исключённые приложения и правила с явно выбранным другим профилем сохраняют свою маршрутизацию. Основной VPN должен поддерживать UDP для WireGuard/AmneziaWG. При сбое WARP назначенный ему трафик не обходит цепочку автоматически. Для использования WARP отдельно добавьте копию в профили.</string>
+    <string name="warp_enable">Использовать WARP как выход</string>
+    <string name="warp_selected">Выбранная конфигурация выхода</string>
+    <string name="warp_refresh">Обновить параметры регистрации</string>
+    <string name="warp_add_profile">Добавить копию в профили</string>
+    <string name="warp_rename">Переименовать конфигурацию</string>
+    <string name="warp_delete">Удалить конфигурацию</string>
+    <string name="warp_delete_summary">Можно удалить конфигурацию только из приложения или отозвать регистрацию устройства у Cloudflare и удалить её. Копии в профилях независимы; отзыв регистрации сделает их неработоспособными.</string>
+    <string name="warp_local_delete">Удалить локально</string>
+    <string name="warp_revoke">Отозвать и удалить</string>
+    <string name="warp_disable_first">Перед удалением выбранной конфигурации отключите выход через WARP.</string>
+    <string name="warp_terms">Создание конфигурации регистрирует устройство у Cloudflare и означает принятие условий WARP: https://www.cloudflare.com/application/terms/\n\nПри подключённом VPN регистрация выполняется через него. Без активного VPN — напрямую. Ключи и токен регистрации сохраняются в настройках приложения и включаются в резервные копии.</string>
+    <string name="warp_accept">Принять и продолжить</string>
+    <string name="warp_busy">Обращение к Cloudflare…</string>
+    <string name="warp_error">Ошибка операции WARP</string>
+    <string name="warp_service_unavailable">Сервис VPN пока недоступен. Откройте этот экран ещё раз и повторите попытку.</string>
+</resources>

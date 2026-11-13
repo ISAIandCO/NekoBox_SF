@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="warp_title">Cloudflare WARP</string>
+    <string name="warp_summary">Exit through WARP: device → selected VPN → WARP → internet. Applies to routes through the current VPN. Direct routes, LAN, excluded apps and rules explicitly selecting another profile retain their routing. WireGuard/AmneziaWG require UDP support on the main VPN. If WARP fails, traffic assigned to it has no automatic fallback. Export a copy to Profiles to use WARP on its own.</string>
+    <string name="warp_enable">Use WARP as exit</string>
+    <string name="warp_selected">Selected exit configuration</string>
+    <string name="warp_refresh">Refresh registration parameters</string>
+    <string name="warp_add_profile">Add copy to Profiles</string>
+    <string name="warp_rename">Rename configuration</string>
+    <string name="warp_delete">Delete configuration</string>
+    <string name="warp_delete_summary">Remove this configuration locally, or revoke the registered device at Cloudflare and remove it. Exported profile copies are independent; revoking the device also invalidates them.</string>
+    <string name="warp_local_delete">Remove locally</string>
+    <string name="warp_revoke">Revoke and remove</string>
+    <string name="warp_disable_first">Disable WARP exit before deleting its selected configuration.</string>
+    <string name="warp_terms">Generating a configuration registers a device with Cloudflare and accepts the WARP terms: https://www.cloudflare.com/application/terms/\n\nRegistration uses the active VPN when connected. Without an active VPN, registration connects directly. Keys and the registration token are saved in app settings and included in app backups.</string>
+    <string name="warp_accept">Accept and continue</string>
+    <string name="warp_busy">Contacting Cloudflare…</string>
+    <string name="warp_error">WARP operation failed</string>
+    <string name="warp_service_unavailable">VPN service is not available yet. Open this screen again and retry.</string>
+</resources>

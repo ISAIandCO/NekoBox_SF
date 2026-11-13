@@ -114,6 +114,10 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var bypassLan by configurationStore.boolean(Key.BYPASS_LAN)
     var bypassLanInCore by configurationStore.boolean(Key.BYPASS_LAN_IN_CORE)
     var directFallback by configurationStore.boolean(Key.DIRECT_FALLBACK)
+    var warpEnabled by configurationStore.boolean("warpEnabled")
+    var warpSelected by configurationStore.string("warpSelected")
+    var warpConfigs by configurationStore.string("warpConfigs") { "[]" }
+    var warpTermsAccepted by configurationStore.boolean("warpTermsAccepted")
     var directFallbackUrl by configurationStore.string(Key.DIRECT_FALLBACK_URL) { "https://www.kernel.org" }
     var directFallbackRequired by configurationStore.stringToInt(Key.DIRECT_FALLBACK_REQUIRED) { 1 }
     var directFallbackFailures by configurationStore.stringToInt(Key.DIRECT_FALLBACK_FAILURES) { 1 }

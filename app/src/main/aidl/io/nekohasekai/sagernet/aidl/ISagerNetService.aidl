@@ -13,4 +13,5 @@ interface ISagerNetService {
   String getRuntimeDiagnostics(String historyQuery);
   String configuredProbe(long expectedProfileId, String tag, String dnsTag, String httpsUrl);
   String networkProbe(long expectedProfileId, boolean direct, String domain, String dnsTarget);
+  String warpOperation(String action, String identity, boolean amnezia);
 }

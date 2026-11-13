@@ -6,6 +6,7 @@
         android:icon="@drawable/ic_baseline_add_road_24"
         android:title="@string/route_add"
         app:showAsAction="ifRoom" />
+    <item android:id="@+id/action_warp" android:title="@string/warp_title" app:showAsAction="never" />
     <item
         android:id="@+id/action_reset_route"
         android:title="@string/route_reset"

@@ -29,7 +29,7 @@ class PrepareReleaseTest(unittest.TestCase):
                 self.assertEqual(properties['VERSION_NAME'], version)
                 self.assertEqual(properties['PRE_VERSION_NAME'], version)
                 self.assertEqual(metadata['RELEASE_TITLE'], f'NekoBox_SF {version}')
-                self.assertEqual(int(properties['VERSION_CODE']) * 5, 1340)
+                self.assertEqual(int(properties['VERSION_CODE']) * 5, 5_001_000)
                 notes = (self.root / 'release-notes.txt').read_text()
                 self.assertIn(f'версии {version}', notes)
                 self.assertIn('Исправлено восстановление VPN', notes)
@@ -66,6 +66,23 @@ class PrepareReleaseTest(unittest.TestCase):
                     prepare_release(self.root, tag, title, run, '')
                 self.assertEqual((self.root / 'nb4a.properties').read_text(), self.original)
 
+    def test_notes_use_only_selected_versions_changelog(self):
+        notes = self.root / 'docs/releases/2.04.md'
+        notes.parent.mkdir(parents=True)
+        notes.write_text('WARP WireGuard and AmneziaWG')
+        prepare_release(self.root, 'v2.04', '', 300, 'Fallback commit')
+        self.assertIn('WARP WireGuard and AmneziaWG', (self.root / 'release-notes.txt').read_text())
+        self.assertNotIn('Fallback commit', (self.root / 'release-notes.txt').read_text())
+
+    def test_old_tag_properties_do_not_lower_version_code(self):
+        codes = []
+        for run, base in ((300, 200), (301, 68)):
+            (self.root / 'nb4a.properties').write_text(self.original.replace('VERSION_CODE=68', f'VERSION_CODE={base}'))
+            prepare_release(self.root, 'v2.04', '', run, '')
+            properties = dict(line.split('=', 1) for line in (self.root / 'nb4a.properties').read_text().splitlines())
+            codes.append(int(properties['VERSION_CODE']))
+        self.assertGreater(codes[1], codes[0])
+
     def test_workflow_entry_point_reads_commit_and_exports_selected_tag(self):
         script = self.root / '.github/scripts/prepare_release.py'
         script.parent.mkdir(parents=True)
@@ -81,6 +98,16 @@ class PrepareReleaseTest(unittest.TestCase):
         self.assertEqual(exported, {'RELEASE_TAG': 'v2.03', 'RELEASE_VERSION': '2.03', 'RELEASE_TITLE': 'NekoBox_SF 2.03'})
         self.assertIn('VERSION_NAME=2.03\n', (self.root / 'nb4a.properties').read_text())
         self.assertIn('Новое исправление из последнего коммита', (self.root / 'release-notes.txt').read_text())
+
+        (self.root / 'nb4a.properties').write_text(self.original)
+        env['INPUT_TAG'] = 'v2.99'
+        mismatch = subprocess.run(['python3', str(script)], env=env, capture_output=True)
+        self.assertNotEqual(mismatch.returncode, 0)
+        self.assertEqual((self.root / 'nb4a.properties').read_text(), self.original)
+
+        env.update(INPUT_TAG='', GITHUB_REF_TYPE='branch', GITHUB_REF_NAME='main')
+        subprocess.run(['python3', str(script)], env=env, check=True, capture_output=True)
+        self.assertIn('VERSION_NAME=2.00-203\n', (self.root / 'nb4a.properties').read_text())
 
 
 if __name__ == '__main__':

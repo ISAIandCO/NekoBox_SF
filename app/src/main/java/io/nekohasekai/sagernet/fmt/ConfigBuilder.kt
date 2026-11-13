@@ -90,6 +90,7 @@ class ConfigBuildResult(
     var trafficMap: Map<String, List<ProxyEntity>>,
     var profileTagMap: Map<Long, String>,
     val selectorGroupId: Long,
+    val mainOutboundTag: String? = null,
 ) {
     data class IndexEntity(var chain: LinkedHashMap<Int, ProxyEntity>)
 }
@@ -97,6 +98,21 @@ class ConfigBuildResult(
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
 ): ConfigBuildResult {
+    val warp = if (!forTest && DataStore.warpEnabled) io.nekohasekai.sagernet.fmt.warp.WarpConfigs.selected() else null
+    if (warp != null) {
+        require(proxy.type != TYPE_CONFIG || (proxy.requireBean() as ConfigBean).type != 0) {
+            "WARP exit cannot be applied to a full custom configuration"
+        }
+        // Root overrides could replace the protected exit or its DNS after building.
+        for (override in listOf(DataStore.globalCustomConfig, proxy.requireBean().customConfigJson)) {
+            if (!override.isNullOrBlank()) {
+                val fields = gson.fromJson(override, Map::class.java).keys
+                require(fields.none { it in setOf("route", "outbounds", "endpoints", "inbounds", "dns") }) {
+                    "WARP exit conflicts with custom routing/DNS overrides"
+                }
+            }
+        }
+    }
 
     if (proxy.type == TYPE_CONFIG) {
         val bean = proxy.requireBean() as ConfigBean
@@ -113,6 +129,7 @@ fun buildConfig(
         }
     }
 
+    var mainOutboundTag: String? = null
     val trafficMap = HashMap<String, List<ProxyEntity>>()
     val tagMap = HashMap<Long, String>()
     val globalOutbounds = HashMap<Long, String>()
@@ -168,6 +185,12 @@ fun buildConfig(
     }
 
     val extraRules = if (forTest) listOf() else SagerDatabase.rulesDao.enabledRules()
+    if (warp != null) for (rule in extraRules) {
+        if (rule.config.isNotBlank()) {
+            val fields = gson.fromJson(rule.config, Map::class.java).keys
+            require(fields.none { it in setOf("outbound", "action") }) { "WARP exit conflicts with a custom rule outbound/action" }
+        }
+    }
     val extraProxies =
         if (forTest) mapOf() else SagerDatabase.proxyDao.getEntities(extraRules.flatMap { rule ->
             listOf(rule.outbound, rule.fallbackProfile.takeIf { rule.outbound == -1L && rule.fallbackMode == 3 } ?: 0L).filter { it > 0 && it != proxy.id }
@@ -388,6 +411,9 @@ fun buildConfig(
 
             profileList.forEachIndexed { index, proxyEntity ->
                 val bean = proxyEntity.requireBean()
+                if (warp != null) require(bean !is WireGuardBean || bean.privateKey != warp.identity.privateKey) {
+                    "The WARP exit configuration cannot also be the main VPN or a chain hop"
+                }
 
                 var tagOut = "$chainTag-${proxyEntity.id}"
                 var needGlobal = false
@@ -649,7 +675,18 @@ fun buildConfig(
             tagMap[key] = buildProfile(key, p)
         }
 
-        val mainProxyTag = (if (buildSelector) TAG_PROXY else tagMap[proxy.id]) ?: TAG_PROXY
+        // Keep selector entries unchanged so switching the main VPN still works.
+        // Only user traffic enters the wrapper; plugin transport/mapping rules
+        // must continue to reach the underlying VPN without entering WARP again.
+        val upstreamTag = (if (buildSelector) TAG_PROXY else tagMap[proxy.id]) ?: TAG_PROXY
+        // One device identity owns one tunnel. Reusing its key in independent
+        // tunnels through rule-specific VPNs would make Cloudflare roam between
+        // their endpoints and disrupt existing connections. Like Throne, wrap
+        // the main VPN; explicit rules selecting another profile retain it.
+        val mainProxyTag = if (warp == null) upstreamTag else readableTag("WARP-$upstreamTag").also {
+            outbounds.add(warp.outbound(it, upstreamTag))
+        }
+        mainOutboundTag = mainProxyTag
         route.final_ = mainProxyTag
         if (importedWireGuard != null) route.final_ = TAG_BYPASS
 
@@ -1130,7 +1167,8 @@ fun buildConfig(
             proxy.id,
             trafficMap,
             tagMap,
-            if (buildSelector) group.id else -1L
+            if (buildSelector) group.id else -1L,
+            mainOutboundTag
         )
     }
 }

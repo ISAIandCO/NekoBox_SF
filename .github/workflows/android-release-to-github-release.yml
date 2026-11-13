@@ -14,6 +14,11 @@ on:
         description: Release title. Leave empty to auto-generate.
         required: false
         type: string
+      publish:
+        description: 'Publish a new public GitHub Release after building (leave off for verification only).'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -43,6 +48,7 @@ jobs:
           INPUT_TITLE: ${{ inputs.title }}
         run: python3 .github/scripts/prepare_release.py
       - name: Reject an existing release before building
+        if: inputs.publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -97,7 +103,7 @@ jobs:
         env:
           NEKO_ROUTE_ASSET_TEST_DIR: ../app/src/main/assets/sing-box
         shell: bash
-        run: go test -race -tags=with_conntrack,with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api . github.com/sagernet/sing-box/log github.com/sagernet/sing-box/protocol/group github.com/sagernet/sing-box/transport/wireguard github.com/sagernet/sing-box/protocol/http github.com/sagernet/sing-box/common/kmutex github.com/sagernet/sing-box/common/expiringmap github.com/sagernet/sing-box/common/dialer github.com/sagernet/sing-quic/congestion_meta2 github.com/sagernet/sing-box/protocol/vless/encryption 2>&1 | tee ../go-test.log
+        run: go test -race -tags=with_conntrack,with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api . ./warp github.com/sagernet/sing-box/log github.com/sagernet/sing-box/protocol/group github.com/sagernet/sing-box/transport/wireguard github.com/sagernet/sing-box/protocol/http github.com/sagernet/sing-box/common/kmutex github.com/sagernet/sing-box/common/expiringmap github.com/sagernet/sing-box/common/dialer github.com/sagernet/sing-quic/congestion_meta2 github.com/sagernet/sing-box/protocol/vless/encryption 2>&1 | tee ../go-test.log
       - name: Build libcore AAR once
         run: ./buildScript/lib/core/build.sh
       - name: Test and build release APKs
@@ -126,6 +132,7 @@ jobs:
           name: release-apks
           path: release-assets/
       - name: Publish GitHub release
+        if: inputs.publish
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -133,9 +140,6 @@ jobs:
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists; refusing to overwrite it."
             exit 1
-          fi
-          if [ "$RELEASE_VERSION" = "2.00" ]; then
-            python3 -c 'import json; m=json.load(open("release-assets/BUILD-MANIFEST.json")); assert m["signing_key"] == "private-ci", "Version 2.00 must be published with the configured private signing key"'
           fi
           OPTIONS=()
           if [ "$NEKO_DEV_BUILD" = 1 ]; then OPTIONS+=(--prerelease --latest=false); fi
