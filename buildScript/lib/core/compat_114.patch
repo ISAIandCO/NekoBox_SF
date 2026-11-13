@@ -16953,10 +16953,10 @@ index 000000000..5e7cfa57b
 +	return key, nil
 +}
 diff --git a/transport/wireguard/client_bind.go b/transport/wireguard/client_bind.go
-index b423558e9..5beba335f 100644
+index b423558e9..0e057a4aa 100644
 --- a/transport/wireguard/client_bind.go
 +++ b/transport/wireguard/client_bind.go
-@@ -7,6 +7,7 @@ import (
+@@ -7,15 +7,13 @@ import (
  	"sync"
  	"time"
  
@@ -16964,15 +16964,20 @@ index b423558e9..5beba335f 100644
  	"github.com/sagernet/sing/common"
  	"github.com/sagernet/sing/common/bufio"
  	E "github.com/sagernet/sing/common/exceptions"
-@@ -15,7 +16,6 @@ import (
+ 	"github.com/sagernet/sing/common/logger"
+ 	M "github.com/sagernet/sing/common/metadata"
  	N "github.com/sagernet/sing/common/network"
- 	"github.com/sagernet/sing/service"
- 	"github.com/sagernet/sing/service/pause"
+-	"github.com/sagernet/sing/service"
+-	"github.com/sagernet/sing/service/pause"
 -	"github.com/sagernet/wireguard-go/conn"
  )
  
  var _ conn.Bind = (*ClientBind)(nil)
-@@ -27,7 +27,6 @@ type ClientBind struct {
+@@ -23,11 +21,9 @@ var _ conn.Bind = (*ClientBind)(nil)
+ type ClientBind struct {
+ 	ctx                 context.Context
+ 	logger              logger.Logger
+-	pauseManager        pause.Manager
  	bindCtx             context.Context
  	bindDone            context.CancelFunc
  	dialer              N.Dialer
@@ -16980,7 +16985,7 @@ index b423558e9..5beba335f 100644
  	reservedForEndpoint map[netip.AddrPort][3]uint8
  	connAccess          sync.Mutex
  	conn                *wireConn
-@@ -35,6 +34,7 @@ type ClientBind struct {
+@@ -35,13 +31,13 @@ type ClientBind struct {
  	isConnect           bool
  	connectAddr         netip.AddrPort
  	reserved            [3]uint8
@@ -16988,7 +16993,14 @@ index b423558e9..5beba335f 100644
  }
  
  func NewClientBind(ctx context.Context, logger logger.Logger, dialer N.Dialer, isConnect bool, connectAddr netip.AddrPort, reserved [3]uint8) *ClientBind {
-@@ -52,15 +52,6 @@ func NewClientBind(ctx context.Context, logger logger.Logger, dialer N.Dialer, i
+ 	return &ClientBind{
+ 		ctx:                 ctx,
+ 		logger:              logger,
+-		pauseManager:        service.FromContext[pause.Manager](ctx),
+ 		dialer:              dialer,
+ 		reservedForEndpoint: make(map[netip.AddrPort][3]uint8),
+ 		done:                make(chan struct{}),
+@@ -52,15 +48,6 @@ func NewClientBind(ctx context.Context, logger logger.Logger, dialer N.Dialer, i
  }
  
  func (c *ClientBind) connect() (*wireConn, error) {
@@ -17004,7 +17016,7 @@ index b423558e9..5beba335f 100644
  	c.connAccess.Lock()
  	defer c.connAccess.Unlock()
  	select {
-@@ -68,7 +59,7 @@ func (c *ClientBind) connect() (*wireConn, error) {
+@@ -68,7 +55,7 @@ func (c *ClientBind) connect() (*wireConn, error) {
  		return nil, net.ErrClosed
  	default:
  	}
@@ -17013,7 +17025,35 @@ index b423558e9..5beba335f 100644
  	if serverConn != nil {
  		select {
  		case <-serverConn.done:
-@@ -135,9 +126,9 @@ func (c *ClientBind) receive(packets [][]byte, sizes []int, eps []conn.Endpoint)
+@@ -99,6 +86,17 @@ func (c *ClientBind) connect() (*wireConn, error) {
+ 	return c.conn, nil
+ }
+ 
++// Close must interrupt retry waits: Device.Down waits for these workers before
++// DeviceWake can resume them. Waiting for the pause manager here deadlocks Down.
++func (c *ClientBind) waitRetry() {
++	timer := time.NewTimer(time.Second)
++	defer timer.Stop()
++	select {
++	case <-c.bindCtx.Done():
++	case <-timer.C:
++	}
++}
++
+ func (c *ClientBind) Open(port uint16) (fns []conn.ReceiveFunc, actualPort uint16, err error) {
+ 	select {
+ 	case <-c.done:
+@@ -119,8 +117,7 @@ func (c *ClientBind) receive(packets [][]byte, sizes []int, eps []conn.Endpoint)
+ 		}
+ 		c.logger.Error(E.Cause(err, "connect to server"))
+ 		err = nil
+-		c.pauseManager.WaitActive()
+-		time.Sleep(time.Second)
++		c.waitRetry()
+ 		return
+ 	}
+ 	n, addr, err := udpConn.ReadFrom(packets[0])
+@@ -135,9 +132,9 @@ func (c *ClientBind) receive(packets [][]byte, sizes []int, eps []conn.Endpoint)
  		return
  	}
  	sizes[0] = n
@@ -17025,7 +17065,7 @@ index b423558e9..5beba335f 100644
  	}
  	eps[0] = remoteEndpoint(M.SocksaddrFromNet(addr).Unwrap().AddrPort())
  	count = 1
-@@ -163,7 +154,7 @@ func (c *ClientBind) SetMark(mark uint32) error {
+@@ -163,28 +160,22 @@ func (c *ClientBind) SetMark(mark uint32) error {
  	return nil
  }
  
@@ -17033,8 +17073,9 @@ index b423558e9..5beba335f 100644
 +func (c *ClientBind) Send(bufs [][]byte, ep conn.Endpoint) error {
  	udpConn, err := c.connect()
  	if err != nil {
- 		c.pauseManager.WaitActive()
-@@ -171,20 +162,15 @@ func (c *ClientBind) Send(bufs [][]byte, ep conn.Endpoint, offset int) error {
+-		c.pauseManager.WaitActive()
+-		time.Sleep(time.Second)
++		c.waitRetry()
  		return err
  	}
  	destination := netip.AddrPort(ep.(remoteEndpoint))
@@ -17059,7 +17100,7 @@ index b423558e9..5beba335f 100644
  		if err != nil {
  			udpConn.Close()
  			return err
-@@ -206,9 +192,7 @@ func (c *ClientBind) BatchSize() int {
+@@ -206,9 +197,7 @@ func (c *ClientBind) BatchSize() int {
  }
  
  func (c *ClientBind) SetReservedForEndpoint(destination netip.AddrPort, reserved [3]byte) {
@@ -17069,7 +17110,7 @@ index b423558e9..5beba335f 100644
  }
  
  type wireConn struct {
-@@ -250,16 +234,16 @@ func (e remoteEndpoint) SrcToString() string {
+@@ -250,16 +239,16 @@ func (e remoteEndpoint) SrcToString() string {
  }
  
  func (e remoteEndpoint) DstToString() string {

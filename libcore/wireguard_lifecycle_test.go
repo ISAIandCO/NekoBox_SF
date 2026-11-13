@@ -19,6 +19,7 @@ import (
 	"github.com/sagernet/sing-box/log"
 	"github.com/sagernet/sing-box/option"
 	"github.com/sagernet/sing-box/protocol/group"
+	"github.com/sagernet/sing-box/protocol/shadowsocks"
 	wg "github.com/sagernet/sing-box/transport/wireguard"
 	"github.com/sagernet/sing-tun"
 	M "github.com/sagernet/sing/common/metadata"
@@ -39,7 +40,7 @@ func (p *wireguardLifecycleTestPlatform) AutoDetectInterfaceControl(int) error {
 }
 
 func TestAndroidPlatformWireGuardSurvivesFullServiceStartup(t *testing.T) {
-	for _, mode := range []string{"WireGuard", "WARP-style AWG2", "WireGuard via SOCKS", "WARP-style AWG2 via SOCKS"} {
+	for _, mode := range []string{"WireGuard", "WARP-style AWG2", "WireGuard via Shadowsocks", "WARP-style AWG2 via Shadowsocks"} {
 		t.Run(mode, func(t *testing.T) {
 			var keys [2]*ecdh.PrivateKey
 			for i := range keys {
@@ -86,10 +87,10 @@ func TestAndroidPlatformWireGuardSurvivesFullServiceStartup(t *testing.T) {
 				outbound["i1"] = "<b 0x" + strings.Repeat("ab", 1250) + ">"
 			}
 			outbounds := []any{outbound}
-			if strings.Contains(mode, "via SOCKS") {
+			if strings.Contains(mode, "via Shadowsocks") {
 				for _, tag := range []string{"vpn-a", "vpn-b"} {
-					port := startWarpSocksRelay(t)
-					outbounds = append(outbounds, map[string]any{"type": "socks", "tag": tag, "server": "127.0.0.1", "server_port": port})
+					port := startWarpShadowsocksRelay(t)
+					outbounds = append(outbounds, map[string]any{"type": "shadowsocks", "tag": tag, "server": "127.0.0.1", "server_port": port, "method": "aes-128-gcm", "password": "warp-test-password"})
 				}
 				outbounds = append(outbounds, map[string]any{"type": "selector", "tag": "main-vpn", "outbounds": []string{"vpn-a", "vpn-b"}, "default": "vpn-a"})
 				outbound["detour"] = "main-vpn"
@@ -150,7 +151,7 @@ func TestAndroidPlatformWireGuardSurvivesFullServiceStartup(t *testing.T) {
 				if afterWake {
 					manager.DevicePause()
 					manager.DeviceWake()
-					if strings.Contains(mode, "via SOCKS") {
+					if strings.Contains(mode, "via Shadowsocks") {
 						mainVPN, _ := instance.Outbound().Outbound("main-vpn")
 						if !mainVPN.(*group.Selector).SelectOutbound("vpn-b") {
 							t.Fatal("main VPN switch failed")
@@ -207,7 +208,7 @@ func (warpEchoHandler) NewPacketConnectionEx(_ context.Context, conn N.PacketCon
 	}
 }
 
-func startWarpSocksRelay(t *testing.T) int {
+func startWarpShadowsocksRelay(t *testing.T) int {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -216,11 +217,13 @@ func startWarpSocksRelay(t *testing.T) int {
 	port := listener.Addr().(*net.TCPAddr).Port
 	listener.Close()
 	content, _ := json.Marshal(map[string]any{
-		"inbounds":  []any{map[string]any{"type": "socks", "listen": "127.0.0.1", "listen_port": port}},
+		"inbounds":  []any{map[string]any{"type": "shadowsocks", "listen": "127.0.0.1", "listen_port": port, "method": "aes-128-gcm", "password": "warp-test-password"}},
 		"outbounds": []any{map[string]any{"type": "direct", "tag": "direct"}},
 		"route":     map[string]any{"final": "direct"}, "log": map[string]any{"disabled": true},
 	})
-	ctx := box.Context(context.Background(), nekoboxAndroidInboundRegistry(), nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(), nekoboxAndroidDNSTransportRegistry(nil), nekoboxAndroidServiceRegistry(), nekoboxAndroidCertificateRegistry())
+	registry := nekoboxAndroidInboundRegistry()
+	shadowsocks.RegisterInbound(registry)
+	ctx := box.Context(context.Background(), registry, nekoboxAndroidOutboundRegistry(), nekoboxAndroidEndpointRegistry(), nekoboxAndroidDNSTransportRegistry(nil), nekoboxAndroidServiceRegistry(), nekoboxAndroidCertificateRegistry())
 	ctx = service.ContextWithDefaultRegistry(ctx)
 	service.MustRegister[adapter.PlatformInterface](ctx, &wireguardLifecycleTestPlatform{})
 	var options option.Options
