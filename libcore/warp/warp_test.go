@@ -21,7 +21,7 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 
 func fixture() *device {
 	var result device
-	_ = json.Unmarshal([]byte(`{"id":"device-1","token":"secret-token","config":{"client_id":"AQID","interface":{"addresses":{"v4":"172.16.0.2","v6":"2606:4700:110::2"}},"peers":[{"public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","endpoint":{"v4":"162.159.192.1:2408"}}]}}`), &result)
+	_ = json.Unmarshal([]byte(`{"id":"device-1","token":"secret-token","config":{"client_id":"AQID","interface":{"addresses":{"v4":"172.16.0.2","v6":"2606:4700:110::2"}},"peers":[{"public_key":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=","endpoint":{"v4":"162.159.192.1:0","host":"engage.cloudflareclient.com:2408"}}]}}`), &result)
 	return &result
 }
 
@@ -103,6 +103,54 @@ func TestInvalidResponseDoesNotReplaceSavedParameters(t *testing.T) {
 		if identity.Server != "old" || identity.PrivateKey != "unchanged" {
 			t.Fatal("partially overwrote identity")
 		}
+	}
+}
+
+func TestWireGuardEndpointPortSelection(t *testing.T) {
+	for _, test := range []struct {
+		name, ipv4, host string
+		port             int
+	}{
+		{"API zero port", "162.159.192.1:0", "engage.cloudflareclient.com:2408", 2408},
+		{"API alternative port", "162.159.192.1:0", "engage.cloudflareclient.com:500", 500},
+		{"explicit IPv4 port", "162.159.192.1:4500", "engage.cloudflareclient.com:2408", 4500},
+		{"bare IPv4 with host port", "162.159.192.1", "engage.cloudflareclient.com:1701", 1701},
+		{"empty IPv4 port", "162.159.192.1:", "engage.cloudflareclient.com:2408", 2408},
+		{"zero port without host", "162.159.192.1:0", "", 2408},
+		{"bare IPv4 without host", "162.159.192.1", "", 2408},
+		{"host without port", "162.159.192.1:0", "engage.cloudflareclient.com", 2408},
+		{"host with zero port", "162.159.192.1:0", "engage.cloudflareclient.com:0", 2408},
+		{"negative IPv4 port", "162.159.192.1:-1", "engage.cloudflareclient.com:2408", 0},
+		{"out of range IPv4 port", "162.159.192.1:65536", "engage.cloudflareclient.com:2408", 0},
+		{"malformed IPv4 port", "162.159.192.1:bad", "engage.cloudflareclient.com:2408", 0},
+		{"negative host port", "162.159.192.1:0", "engage.cloudflareclient.com:-1", 0},
+		{"out of range host port", "162.159.192.1:0", "engage.cloudflareclient.com:65536", 0},
+		{"malformed host port", "162.159.192.1:0", "engage.cloudflareclient.com:bad", 0},
+		{"private endpoint", "127.0.0.1:0", "engage.cloudflareclient.com:2408", 0},
+		{"malformed endpoint", "not-an-ip:0", "engage.cloudflareclient.com:2408", 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := fixture()
+			response.Config.Peers[0].Endpoint.V4 = test.ipv4
+			response.Config.Peers[0].Endpoint.Host = test.host
+			identity := &Identity{ID: "device-1", Token: "secret", PrivateKey: "unchanged", Server: "old", Port: 51820}
+			err := fill(response, identity)
+			if test.port == 0 {
+				if err == nil {
+					t.Fatal("accepted invalid endpoint")
+				}
+				if identity.Server != "old" || identity.Port != 51820 {
+					t.Fatal("invalid endpoint replaced saved parameters")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if identity.Server != "162.159.192.1" || identity.Port != test.port || identity.PrivateKey != "unchanged" {
+				t.Fatalf("wrong endpoint or replaced key: server=%s port=%d", identity.Server, identity.Port)
+			}
+		})
 	}
 }
 

@@ -164,11 +164,21 @@ func fill(response *device, identity *Identity) error {
 	// The literal endpoint avoids a resolver dependency on the tunnel it creates.
 	server, port, err := net.SplitHostPort(peer.Endpoint.V4)
 	if err != nil {
-		return fmt.Errorf("WARP API returned an invalid IPv4 endpoint")
+		// Some API responses provide a bare IP; it is validated below.
+		server, port = peer.Endpoint.V4, ""
 	}
 	ip, err := netip.ParseAddr(server)
 	if err != nil || !ip.Is4() || !ip.IsGlobalUnicast() || ip.IsPrivate() {
 		return fmt.Errorf("WARP API returned an invalid endpoint IP")
+	}
+	if port == "" || port == "0" {
+		// Cloudflare commonly returns v4 as IP:0, with the service port in
+		// host (e.g. engage.cloudflareclient.com:2408). Keep the literal IP
+		// to avoid a bootstrap DNS dependency, and borrow only that port.
+		port = "2408"
+		if _, hostPort, hostErr := net.SplitHostPort(peer.Endpoint.Host); hostErr == nil && hostPort != "" && hostPort != "0" {
+			port = hostPort
+		}
 	}
 	portNumber, err := strconv.Atoi(port)
 	if err != nil || portNumber < 1 || portNumber > 65535 {

@@ -185,15 +185,23 @@ class BaseService {
             check(android.os.Binder.getCallingUid() == android.os.Process.myUid()) { "Caller is not the application" }
             return try {
                 val current = data ?: error("Service is unavailable")
-                check(current.state == State.Connected || current.state == State.Stopped) { "Wait for the VPN connection to finish" }
+                val connected = when (current.state) {
+                    State.Connected -> true
+                    State.Stopped -> false
+                    else -> error("Wait for the VPN connection to finish")
+                }
                 if (action == "register") check(DataStore.warpTermsAccepted) { "Accept the Cloudflare WARP terms first" }
-                val result = when (action) {
+                if (connected) {
+                    val proxy = current.proxy ?: error("VPN core is unavailable")
+                    check(proxy.isInitialized()) { "VPN core is unavailable" }
+                    val tag = proxy.config.mainOutboundTag ?: error("Cannot determine the VPN outbound for this configuration")
+                    proxy.box.warpOperation(tag, action, identity, amnezia)
+                } else when (action) {
                     "register" -> Libcore.warpRegister(amnezia)
                     "refresh" -> Libcore.warpRefresh(identity)
                     "revoke" -> { Libcore.warpRevoke(identity); "{}" }
                     else -> error("Unknown WARP operation")
                 }
-                result
             } catch (e: Exception) {
                 org.json.JSONObject().put("error", e.localizedMessage ?: "WARP request failed").toString()
             }
