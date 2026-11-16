@@ -94,6 +94,7 @@ object Key {
     const val PROFILE_DIRTY = "profileDirty"
     const val PROFILE_ID = "profileId"
     const val PROFILE_NAME = "profileName"
+    const val PROFILE_WARP_EXIT = "profileWarpExit"
     const val PROFILE_GROUP = "profileGroup"
     const val PROFILE_CURRENT = "profileCurrent"
     const val FASTEST_CANDIDATE_MODE = "fastestCandidateMode"

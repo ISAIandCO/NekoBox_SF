@@ -26,6 +26,8 @@ import androidx.preference.EditTextPreference
 import androidx.preference.Preference
 import androidx.preference.PreferenceDataStore
 import androidx.preference.PreferenceFragmentCompat
+import androidx.preference.ListPreference
+import androidx.preference.PreferenceCategory
 import com.github.shadowsocks.plugin.Empty
 import com.github.shadowsocks.plugin.fragment.AlertDialogFragment
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -37,11 +39,15 @@ import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.AbstractBean
+import io.nekohasekai.sagernet.fmt.warp.WARP_EXIT_DISABLED
+import io.nekohasekai.sagernet.fmt.warp.WarpConfigs
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.ThemedActivity
+import io.nekohasekai.sagernet.ui.WarpSettingsActivity
 import io.nekohasekai.sagernet.widget.ListListener
 import kotlinx.parcelize.Parcelize
 import kotlin.properties.Delegates
+import moe.matsuri.nb4a.ui.SimpleMenuPreference
 
 @Suppress("UNCHECKED_CAST")
 abstract class ProfileSettingsActivity<T : AbstractBean>(
@@ -106,6 +112,7 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
             runOnDefaultDispatcher {
                 if (editingId == 0L) {
                     DataStore.editingGroup = DataStore.selectedGroupForImport()
+                    DataStore.profileWarpExit = ""
                     createEntity().applyDefaultValues().init()
                 } else {
                     if (proxyEntity == null) {
@@ -115,7 +122,10 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                         return@runOnDefaultDispatcher
                     }
                     DataStore.editingGroup = proxyEntity!!.groupId
-                    (proxyEntity!!.requireBean() as T).init()
+                    (proxyEntity!!.requireBean() as T).apply {
+                        DataStore.profileWarpExit = warpExit.orEmpty()
+                        init()
+                    }
                 }
 
                 onMainDispatcher {
@@ -135,16 +145,31 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
         val editingId = DataStore.editingId
         if (editingId == 0L) {
             val editingGroup = DataStore.editingGroup
-            ProfileManager.createProfile(editingGroup, createEntity().apply { serialize() })
+            ProfileManager.createProfile(editingGroup, createEntity().apply {
+                serialize()
+                warpExit = DataStore.profileWarpExit
+            })
         } else {
             if (proxyEntity == null) {
                 finish()
                 return
             }
-            if (proxyEntity!!.id == DataStore.selectedProxy) {
+            val activeProfile = if (DataStore.serviceState.started)
+                SagerDatabase.proxyDao.getById(DataStore.currentProfile) else null
+            // A running group selector also exposes inactive entries through its web API.
+            // Rebuild it when an entry changes exit, before it can retain the previous wrapper.
+            val selectorExitChanged = proxyEntity!!.requireBean().warpExit != DataStore.profileWarpExit &&
+                activeProfile?.groupId == proxyEntity!!.groupId &&
+                SagerDatabase.groupDao.getById(proxyEntity!!.groupId)?.isSelector == true
+            if (proxyEntity!!.id == DataStore.selectedProxy || selectorExitChanged) {
                 SagerNet.stopService()
             }
-            ProfileManager.updateProfile(proxyEntity!!.apply { (requireBean() as T).serialize() })
+            ProfileManager.updateProfile(proxyEntity!!.apply {
+                (requireBean() as T).apply {
+                    serialize()
+                    warpExit = DataStore.profileWarpExit
+                }
+            })
         }
         finish()
 
@@ -210,6 +235,30 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
     class MyPreferenceFragmentCompat : PreferenceFragmentCompat() {
 
         var activity: ProfileSettingsActivity<*>? = null
+        private var warpExitPreference: SimpleMenuPreference? = null
+
+        private fun updateWarpChoices() {
+            val preference = warpExitPreference ?: return
+            val values = mutableListOf("", WARP_EXIT_DISABLED)
+            val labels = mutableListOf(getString(R.string.warp_profile_inherit), getString(R.string.warp_profile_disabled))
+            WarpConfigs.all().forEach {
+                values.add(it.id)
+                labels.add("${it.name} · ${if (it.amnezia) "AmneziaWG" else "WireGuard"}")
+            }
+            val selected = DataStore.profileWarpExit
+            if (selected !in values) {
+                values.add(selected)
+                labels.add(getString(R.string.warp_profile_missing))
+            }
+            preference.entries = labels.toTypedArray()
+            preference.entryValues = values.toTypedArray()
+            preference.value = selected
+        }
+
+        override fun onResume() {
+            super.onResume()
+            updateWarpChoices()
+        }
 
         override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
             preferenceManager.preferenceDataStore = DataStore.profileCacheStore
@@ -217,6 +266,23 @@ abstract class ProfileSettingsActivity<T : AbstractBean>(
                 activity = (requireActivity() as ProfileSettingsActivity<*>).apply {
                     createPreferences(savedInstanceState, rootKey)
                 }
+                val category = PreferenceCategory(requireContext()).apply { setTitle(R.string.warp_title) }
+                preferenceScreen.addPreference(category)
+                warpExitPreference = SimpleMenuPreference(requireContext()).apply {
+                    key = Key.PROFILE_WARP_EXIT
+                    setTitle(R.string.warp_profile_exit)
+                    summaryProvider = ListPreference.SimpleSummaryProvider.getInstance()
+                    category.addPreference(this)
+                }
+                updateWarpChoices()
+                category.addPreference(Preference(requireContext()).apply {
+                    setTitle(R.string.warp_manage)
+                    setSummary(R.string.warp_profile_summary)
+                    setOnPreferenceClickListener {
+                        startActivity(Intent(requireContext(), WarpSettingsActivity::class.java))
+                        true
+                    }
+                })
             } catch (e: Exception) {
                 Toast.makeText(
                     SagerNet.application,

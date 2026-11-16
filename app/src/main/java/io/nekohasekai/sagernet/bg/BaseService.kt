@@ -282,9 +282,16 @@ class BaseService {
         fun canReloadSelector(): Boolean {
             if ((data.proxy?.config?.selectorGroupId ?: -1L) < 0) return false
             val ent = SagerDatabase.proxyDao.getById(DataStore.selectedProxy) ?: return false
+            if (io.nekohasekai.sagernet.fmt.warp.WarpConfigs.idFor(ent.requireBean()) != data.proxy?.config?.warpExitId) return false
             val tmpBox = ProxyInstance(ent)
-            tmpBox.buildConfigTmp()
-            if (tmpBox.lastSelectorGroupId == data.proxy?.lastSelectorGroupId) {
+            try {
+                tmpBox.buildConfigTmp()
+            } catch (_: Exception) {
+                // Reconnect through the normal startup path, which reports invalid configurations.
+                return false
+            }
+            if (tmpBox.lastSelectorGroupId == data.proxy?.lastSelectorGroupId &&
+                tmpBox.config.warpExitId == data.proxy?.config?.warpExitId) {
                 return true
             }
             return false

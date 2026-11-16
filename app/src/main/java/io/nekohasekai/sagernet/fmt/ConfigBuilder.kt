@@ -31,6 +31,7 @@ import io.nekohasekai.sagernet.fmt.v2ray.buildSingBoxOutboundStandardV2RayBean
 import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 import io.nekohasekai.sagernet.fmt.wireguard.buildSingBoxOutboundWireguardBean
 import io.nekohasekai.sagernet.fmt.wireguard.normalizeWireGuardLocalAddresses
+import io.nekohasekai.sagernet.fmt.warp.WarpConfigs
 import io.nekohasekai.sagernet.ktx.isIpAddress
 import io.nekohasekai.sagernet.ktx.mkPort
 import io.nekohasekai.sagernet.utils.PackageCache
@@ -91,6 +92,7 @@ class ConfigBuildResult(
     var profileTagMap: Map<Long, String>,
     val selectorGroupId: Long,
     val mainOutboundTag: String? = null,
+    val warpExitId: String? = null,
 ) {
     data class IndexEntity(var chain: LinkedHashMap<Int, ProxyEntity>)
 }
@@ -98,7 +100,7 @@ class ConfigBuildResult(
 fun buildConfig(
     proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
 ): ConfigBuildResult {
-    val warp = if (!forTest && DataStore.warpEnabled) io.nekohasekai.sagernet.fmt.warp.WarpConfigs.selected() else null
+    val warp = if (forTest) null else WarpConfigs.forProfile(proxy.requireBean())
     if (warp != null) {
         require(proxy.type != TYPE_CONFIG || (proxy.requireBean() as ConfigBean).type != 0) {
             "WARP exit cannot be applied to a full custom configuration"
@@ -210,7 +212,13 @@ fun buildConfig(
     }
     fun ruleDirectDns(rule: RuleEntity) = fallbackDnsTags[ruleDirectTag(rule)] ?: "dns-direct"
     val importedWireGuard = (proxy.requireBean() as? WireGuardBean)?.takeIf { it.useConfigRoutes == true && !forTest }
-    val buildSelector = !forTest && group?.isSelector == true && !forExport && importedWireGuard == null
+    val selectorProfiles = if (!forTest && group?.isSelector == true && !forExport && importedWireGuard == null)
+        SagerDatabase.proxyDao.getByGroup(group.id) else emptyList()
+    // The shared wrapper must not follow a switch to a profile with another exit.
+    // Mixed groups use an ordinary reconnect; internal Fastest/Waterfall switching stays intact.
+    val buildSelector = selectorProfiles.isNotEmpty() && selectorProfiles.all {
+        WarpConfigs.idFor(it.requireBean()) == warp?.id
+    }
     val userDNSRuleList = mutableListOf<DNSRule_DefaultOptions>()
     val domainListDNSDirectForce = mutableListOf<String>()
     val bypassDNSBeans = hashSetOf<AbstractBean>()
@@ -656,8 +664,7 @@ fun buildConfig(
         }
 
         if (buildSelector) {
-            val list = group.id.let { SagerDatabase.proxyDao.getByGroup(it) }
-            list.forEach {
+            selectorProfiles.forEach {
                 tagMap[it.id] = buildProfile(it.id, it)
             }
             outbounds.add(0, Outbound_SelectorOptions().apply {
@@ -1167,8 +1174,9 @@ fun buildConfig(
             proxy.id,
             trafficMap,
             tagMap,
-            if (buildSelector) group.id else -1L,
-            mainOutboundTag
+            if (buildSelector) group!!.id else -1L,
+            mainOutboundTag,
+            warp?.id
         )
     }
 }

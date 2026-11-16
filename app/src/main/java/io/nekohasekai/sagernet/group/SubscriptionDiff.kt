@@ -10,7 +10,7 @@ internal fun subscriptionChanges(before: AbstractBean, after: AbstractBean): Set
     val old = gson.toJsonTree(before).asJsonObject
     val new = gson.toJsonTree(after).asJsonObject
     return (old.keySet() + new.keySet()).filter { old[it] != new[it] }
-        .filterNot { it in setOf("customOutboundJson", "customConfigJson", "useConfigRoutes") }
+        .filterNot { it in setOf("customOutboundJson", "customConfigJson", "useConfigRoutes", "warpExit") }
         .map { field ->
             when {
                 field == "name" -> "name"

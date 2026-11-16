@@ -2,8 +2,15 @@
 <resources>
     <string name="warp_title">Cloudflare WARP</string>
     <string name="warp_summary">Exit through WARP: device → selected VPN → WARP → internet. Applies to routes through the current VPN. Direct routes, LAN, excluded apps and rules explicitly selecting another profile retain their routing. WireGuard/AmneziaWG require UDP support on the main VPN. If WARP fails, traffic assigned to it has no automatic fallback. Export a copy to Profiles to use WARP on its own.</string>
-    <string name="warp_enable">Use WARP as exit</string>
-    <string name="warp_selected">Selected exit configuration</string>
+    <string name="warp_enable">Use WARP as default exit</string>
+    <string name="warp_selected">Default exit configuration</string>
+    <string name="warp_profile_exit">WARP exit for this profile</string>
+    <string name="warp_profile_inherit">As configured in Routing</string>
+    <string name="warp_profile_disabled">Disabled for this profile</string>
+    <string name="warp_profile_missing">Configuration unavailable — choose another</string>
+    <string name="warp_manage">Manage WARP configurations</string>
+    <string name="warp_profile_summary">Applies when this profile is selected as the main VPN, including Fastest and Waterfall. Choose a configuration to use WARP independently of the default in Routing.</string>
+    <string name="warp_profile_in_use">This WARP configuration is assigned to profiles. Change their WARP exit before deleting or revoking it.</string>
     <string name="warp_refresh">Refresh registration parameters</string>
     <string name="warp_add_profile">Add copy to Profiles</string>
     <string name="warp_rename">Rename configuration</string>

@@ -226,6 +226,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var editingId by profileCacheStore.long(Key.PROFILE_ID)
     var editingGroup by profileCacheStore.long(Key.PROFILE_GROUP)
     var profileName by profileCacheStore.string(Key.PROFILE_NAME)
+    var profileWarpExit by profileCacheStore.string(Key.PROFILE_WARP_EXIT)
     var fastestCandidateMode by profileCacheStore.stringToInt(Key.FASTEST_CANDIDATE_MODE) { 0 }
     var fastestSourceGroup by profileCacheStore.stringToLong(Key.FASTEST_SOURCE_GROUP)
     var fastestNameRegex by profileCacheStore.string(Key.FASTEST_NAME_REGEX)

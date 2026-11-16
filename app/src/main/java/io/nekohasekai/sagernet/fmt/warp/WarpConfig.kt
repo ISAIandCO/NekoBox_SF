@@ -1,6 +1,10 @@
 package io.nekohasekai.sagernet.fmt.warp
 
 import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.database.SagerDatabase
+import io.nekohasekai.sagernet.fmt.AbstractBean
+import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 import io.nekohasekai.sagernet.fmt.wireguard.buildSingBoxOutboundWireguardBean
 import moe.matsuri.nb4a.utils.JavaUtil.gson
@@ -52,10 +56,32 @@ data class WarpConfig(
     }
 }
 
+const val WARP_EXIT_DISABLED = "off"
+
+fun effectiveWarpExitId(profileExit: String?, globalEnabled: Boolean, globalSelected: String): String? =
+    when (profileExit.orEmpty()) {
+        "" -> if (globalEnabled) globalSelected else null
+        WARP_EXIT_DISABLED -> null
+        else -> profileExit
+    }
+
+fun resolveWarpExit(id: String?, configs: List<WarpConfig>): WarpConfig? = id?.let { selected ->
+    configs.find { it.id == selected }
+        ?: error("Selected WARP configuration is unavailable; choose one in the profile settings or Routing → Cloudflare WARP")
+}
+
 object WarpConfigs {
     fun all(): List<WarpConfig> = gson.fromJson(DataStore.warpConfigs, Array<WarpConfig>::class.java).toList()
-    fun selected(): WarpConfig = all().find { it.id == DataStore.warpSelected }
-        ?: error("Select a WARP configuration in Routing → Cloudflare WARP")
+    fun idFor(bean: AbstractBean): String? = effectiveWarpExitId(bean.warpExit, DataStore.warpEnabled, DataStore.warpSelected)
+    fun forProfile(bean: AbstractBean): WarpConfig? = idFor(bean)?.let { resolveWarpExit(it, all()) }
+    fun isActive(id: String): Boolean = DataStore.serviceState.started &&
+        SagerDatabase.proxyDao.getById(DataStore.currentProfile)?.let { idFor(it.requireBean()) == id } == true
+    fun requireCanDelete(id: String) {
+        require(id != DataStore.warpSelected || !DataStore.warpEnabled) { app.getString(R.string.warp_disable_first) }
+        require(SagerDatabase.proxyDao.getAll().none { it.requireBean().warpExit == id }) {
+            app.getString(R.string.warp_profile_in_use)
+        }
+    }
     fun save(config: WarpConfig) {
         val configs = all().toMutableList()
         val index = configs.indexOfFirst { it.id == config.id }
@@ -64,7 +90,7 @@ object WarpConfigs {
         if (DataStore.warpSelected.isEmpty()) DataStore.warpSelected = config.id
     }
     fun delete(id: String) {
-        require(id != DataStore.warpSelected || !DataStore.warpEnabled) { "Disable WARP before deleting its active configuration" }
+        requireCanDelete(id)
         DataStore.warpConfigs = gson.toJson(all().filterNot { it.id == id })
         if (DataStore.warpSelected == id) DataStore.warpSelected = ""
     }

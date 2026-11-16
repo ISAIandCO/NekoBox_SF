@@ -140,14 +140,16 @@ class WarpSettingsActivity : ThemedActivity() {
                     }.show()
             }
             button(body, R.string.warp_delete) {
-                if (config.id == DataStore.warpSelected && DataStore.warpEnabled) {
-                    Toast.makeText(this, R.string.warp_disable_first, Toast.LENGTH_LONG).show()
+                val deletionError = runCatching { WarpConfigs.requireCanDelete(config.id) }.exceptionOrNull()
+                if (deletionError != null) {
+                    Toast.makeText(this, deletionError.localizedMessage, Toast.LENGTH_LONG).show()
                 } else MaterialAlertDialogBuilder(this).setTitle(R.string.warp_delete)
                     .setMessage(R.string.warp_delete_summary)
                     .setNegativeButton(android.R.string.cancel, null)
-                    .setNeutralButton(R.string.warp_local_delete) { _, _ -> WarpConfigs.delete(config.id); render() }
+                    .setNeutralButton(R.string.warp_local_delete) { _, _ -> operation { WarpConfigs.delete(config.id) } }
                     .setPositiveButton(R.string.warp_revoke) { _, _ ->
                         operation {
+                            WarpConfigs.requireCanDelete(config.id)
                             request("revoke", config)
                             WarpConfigs.delete(config.id)
                         }
@@ -189,7 +191,7 @@ class WarpSettingsActivity : ThemedActivity() {
                 // Persist a completed registration even if the screen is rotated.
                 withContext(Dispatchers.IO + NonCancellable) {
                     action()
-                    if (reloadExit != null && DataStore.warpEnabled && DataStore.warpSelected == reloadExit && DataStore.serviceState.started) {
+                    if (reloadExit != null && WarpConfigs.isActive(reloadExit)) {
                         SagerNet.reloadService(true)
                     }
                 }

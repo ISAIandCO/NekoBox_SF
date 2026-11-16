@@ -23,6 +23,8 @@ public abstract class AbstractBean extends Serializable {
 
     public String customOutboundJson;
     public String customConfigJson;
+    // Empty: inherit Routing; "off": disable; otherwise a saved WARP configuration ID.
+    public String warpExit = "";
 
     //
     public transient String finalAddress;
@@ -73,6 +75,7 @@ public abstract class AbstractBean extends Serializable {
 
         if (customOutboundJson == null) customOutboundJson = "";
         if (customConfigJson == null) customConfigJson = "";
+        if (warpExit == null) warpExit = "";
     }
 
 
@@ -82,12 +85,13 @@ public abstract class AbstractBean extends Serializable {
     public void serializeToBuffer(@NonNull ByteBufferOutput output) {
         serialize(output);
 
-        output.writeInt(1);
+        output.writeInt(2);
         if (!serializeWithoutName) {
             output.writeString(name);
         }
         output.writeString(customOutboundJson);
         output.writeString(customConfigJson);
+        output.writeString(warpExit);
     }
 
     @Override
@@ -99,6 +103,7 @@ public abstract class AbstractBean extends Serializable {
         name = input.readString();
         customOutboundJson = input.readString();
         customConfigJson = input.readString();
+        warpExit = extraVersion >= 2 ? input.readString() : "";
     }
 
     public void serialize(ByteBufferOutput output) {

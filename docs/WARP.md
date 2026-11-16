@@ -2,7 +2,13 @@
 
 ## Usage
 
-Open **Routing → ⋮ → Cloudflare WARP**, generate a WireGuard or AmneziaWG configuration, select it, and enable **Use WARP as exit**. Accept the Cloudflare terms before registering the first device. The active VPN is restarted when the exit setting changes.
+Open **Routing → ⋮ → Cloudflare WARP**, generate a WireGuard or AmneziaWG configuration, select it, and enable **Use WARP as default exit**. Accept the Cloudflare terms before registering the first device. The active VPN is restarted when the exit setting changes.
+
+For a particular profile, open its editor and use **Cloudflare WARP → WARP exit for this profile**. Choose **As configured in Routing**, **Disabled for this profile**, or a saved WG/AWG configuration. A specific configuration works even when the default WARP switch is off. This also applies to a Fastest or Waterfall profile as a whole: its candidates keep switching underneath one WARP tunnel. Settings on nested candidates/chain hops do not add more WARP tunnels; the selected main profile owns its exit. Explicit routes to other profiles retain their existing routing.
+
+The selection is part of the profile: it survives restarts, cloning, backup/restore, and subscription updates/renames. Older profiles inherit the existing Routing default. Restore settings together with profiles to transfer their saved WARP registrations. A missing configuration causes a connection error instead of silently using another exit. Configurations assigned to profiles must be detached in those editors before they can be deleted/revoked. Refreshing the active profile's configuration restarts its VPN even when the default WARP switch is off.
+
+Selector groups with different effective WARP exits reconnect when switching main profiles, so GUI or web selector changes cannot keep another profile's exit. Groups sharing an exit keep their existing fast selector switching. Fastest/Waterfall candidate switching is unaffected.
 
 The resulting path is **device → selected VPN → WARP → destination**. Select the main VPN normally, including subscription profiles, chains, Fastest, Waterfall and selector groups. The main VPN must carry UDP. There is no direct or main-VPN-only fallback for traffic assigned to a failed WARP exit. Disable the WARP switch to restore ordinary routing.
 

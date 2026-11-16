@@ -7,8 +7,9 @@ import io.nekohasekai.sagernet.fmt.wireguard.WireGuardBean
 class SubscriptionOptionsTest {
     @Test fun fingerprintsIgnoreLocalOverridesAndNamesButKeepKeys() {
         val first = WireGuardBean().apply { initializeDefaultValues(); name = "old"; privateKey = "fixture" }
-        val second = first.clone().apply { name = "new"; customOutboundJson = "{\"test\":true}" }
+        val second = first.clone().apply { name = "new"; customOutboundJson = "{\"test\":true}"; warpExit = "local-warp" }
         assertEquals(subscriptionFingerprint(first), subscriptionFingerprint(second))
+        assertEquals(setOf("name"), subscriptionChanges(first, second))
         second.privateKey = "other"
         assertNotEquals(subscriptionFingerprint(first), subscriptionFingerprint(second))
     }

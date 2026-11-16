@@ -35,4 +35,32 @@ class WarpConfigTest {
     @Test fun rejectsSelfDetour() {
         assertThrows(IllegalArgumentException::class.java) { config(false).outbound("warp", "warp") }
     }
+
+    @Test fun profilesInheritDefaultsOrSelectAnIndependentExit() {
+        val wg = config(false).copy(id = "wg")
+        val awg = config(true).copy(id = "awg")
+        val configs = listOf(wg, awg)
+        assertNull(resolveWarpExit(effectiveWarpExitId("", false, "wg"), configs))
+        assertSame(wg, resolveWarpExit(effectiveWarpExitId("", true, "wg"), configs))
+        assertSame(wg, resolveWarpExit(effectiveWarpExitId(null, true, "wg"), configs))
+        assertSame(awg, resolveWarpExit(effectiveWarpExitId("awg", false, "wg"), configs))
+        assertSame(awg, resolveWarpExit(effectiveWarpExitId("awg", true, "wg"), configs))
+        assertNull(resolveWarpExit(effectiveWarpExitId(WARP_EXIT_DISABLED, true, "wg"), configs))
+        assertNull(resolveWarpExit(effectiveWarpExitId(WARP_EXIT_DISABLED, true, "missing"), configs))
+        assertSame(awg, resolveWarpExit(effectiveWarpExitId("awg", true, "missing"), configs))
+    }
+
+    @Test fun missingProfileExitNeverUsesTheGlobalExitOrDirect() {
+        val configs = listOf(config(false).copy(id = "global"))
+        for ((choice, enabled, global) in listOf(
+            Triple("deleted-profile-exit", true, "global"),
+            Triple("deleted-profile-exit", false, "global"),
+            Triple("", true, "deleted-global-exit"),
+            Triple("", true, ""),
+        )) {
+            assertThrows(IllegalStateException::class.java) {
+                resolveWarpExit(effectiveWarpExitId(choice, enabled, global), configs)
+            }
+        }
+    }
 }

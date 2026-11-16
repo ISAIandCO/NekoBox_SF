@@ -297,6 +297,7 @@ object RawUpdater : GroupUpdater() {
                 // 更新订阅，保留自定义覆写设置
                 bean.customOutboundJson = existsBean.customOutboundJson
                 bean.customConfigJson = existsBean.customConfigJson
+                bean.warpExit = existsBean.warpExit
                 if (bean is WireGuardBean && existsBean is WireGuardBean) bean.useConfigRoutes = existsBean.useConfigRoutes
                 when {
                     existsBean != bean || existsBean.name != bean.name -> {

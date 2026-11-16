@@ -30,6 +30,7 @@ internal fun subscriptionFingerprint(bean: AbstractBean): String {
         name = ""
         customOutboundJson = ""
         customConfigJson = ""
+        warpExit = ""
         if (this is WireGuardBean) useConfigRoutes = false
     }
     val digest = MessageDigest.getInstance("SHA-256").digest(KryoConverters.serialize(copy))
