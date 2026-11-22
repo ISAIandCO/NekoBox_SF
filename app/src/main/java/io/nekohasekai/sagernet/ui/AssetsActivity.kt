@@ -12,14 +12,12 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.database.DataStore
+import io.nekohasekai.sagernet.bg.GeoAssetUpdater
 import io.nekohasekai.sagernet.databinding.LayoutAssetItemBinding
 import io.nekohasekai.sagernet.databinding.LayoutAssetsBinding
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.widget.UndoSnackbarManager
 import libcore.Libcore
-import moe.matsuri.nb4a.utils.Util
-import org.json.JSONObject
 import java.io.File
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
@@ -91,7 +89,7 @@ class AssetsActivity : ThemedActivity() {
         return Snackbar.make(layout.coordinator, text, Snackbar.LENGTH_LONG)
     }
 
-    val assetNames = arrayOf("geoip.db", "geosite.db")
+    private val assetNames = GeoAssetUpdater.fileNames
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.import_asset_menu, menu)
@@ -124,7 +122,7 @@ class AssetsActivity : ThemedActivity() {
                             staged.outputStream().use { output -> input.copyToLimited(output, 512L * 1024 * 1024) }
                         } ?: error("Cannot read asset")
                         if (fileName in assetNames) {
-                            Libcore.installRouteAssetVersion(staged.absolutePath, outFile.absolutePath, "Custom")
+                            GeoAssetUpdater.importDatabase(staged, outFile)
                         } else {
                             check(staged.renameTo(outFile)) { "Cannot install asset" }
                         }
@@ -162,8 +160,7 @@ class AssetsActivity : ThemedActivity() {
             val files = filesDir.listFiles()
                 ?.filter { it.isFile && it.name.endsWith(".db") && it.name !in assetNames }
             assets.clear()
-            assets.add(File(filesDir, "geoip.db"))
-            assets.add(File(filesDir, "geosite.db"))
+            assetNames.forEach { assets.add(File(filesDir, it)) }
             if (files != null) assets.addAll(files)
 
             layout.refreshLayout.post {
@@ -241,7 +238,11 @@ class AssetsActivity : ThemedActivity() {
                 binding.rulesUpdate.isInvisible = true
                 runOnDefaultDispatcher {
                     runCatching {
-                        updateAsset(file, versionFile, localVersion)
+                        val updated = GeoAssetUpdater.update(file.name)
+                        onMainDispatcher {
+                            adapter.reloadAssets()
+                            snackbar(if (updated) R.string.route_asset_updated else R.string.route_asset_no_update).show()
+                        }
                     }.onFailure {
                         onMainDispatcher {
                             alert(it.readableMessage).tryToShow()
@@ -262,119 +263,6 @@ class AssetsActivity : ThemedActivity() {
 
     }
 
-    private val rulesProviders = listOf(
-        RuleAssetsProvider(
-            "SagerNet/sing-geoip",
-            "SagerNet/sing-geosite",
-        ),
-        RuleAssetsProvider(
-            "soffchen/sing-geoip",
-            "soffchen/sing-geosite",
-        ),
-        RuleAssetsProvider(
-            "Chocolate4U/Iran-sing-box-rules"
-        ),
-        RuleAssetsProvider(
-            "L11R/antizapret-sing-box-geo"
-        ),
-    )
-
-    suspend fun updateAsset(file: File, versionFile: File, localVersion: String) {
-        if (DataStore.rulesProvider == 4){
-            return updateCustomAsset(file, versionFile)
-        }
-        Libcore.waitForAssets()
-        val fileName = file.name
-        val repo = rulesProviders[DataStore.rulesProvider].repoByFileName[fileName]
-
-        val client = Libcore.newHttpClient().apply {
-            modernTLS()
-            keepAlive()
-            if (DataStore.downloadsProxyOnly) {
-                requireSocks5(DataStore.socksPort, DataStore.mixedUsername, DataStore.mixedPassword)
-            } else {
-                trySocks5(DataStore.socksPort, DataStore.mixedUsername, DataStore.mixedPassword)
-            }
-        }
-
-        try {
-            var response = client.newRequest().apply {
-                setURL("https://api.github.com/repos/$repo/releases/latest")
-            }.execute()
-
-            val release = JSONObject(Util.getStringBox(response.contentString))
-            val tagName = release.optString("tag_name")
-
-            if (tagName == localVersion) {
-                onMainDispatcher {
-                    snackbar(R.string.route_asset_no_update).show()
-                }
-                return
-            }
-
-            val releaseAssets = release.getJSONArray("assets").filterIsInstance<JSONObject>()
-            val assetToDownload = releaseAssets.find { it.getStr("name") == fileName }
-                ?: error("File $fileName not found in release ${release["url"]}")
-            val browserDownloadUrl = assetToDownload.getStr("browser_download_url")
-
-            response = client.newRequest().apply {
-                setURL(browserDownloadUrl)
-            }.execute()
-
-            val cacheFile = File.createTempFile(".download-", ".db", file.parentFile)
-            try {
-                response.writeTo(cacheFile.canonicalPath)
-                Libcore.installRouteAssetVersion(cacheFile.absolutePath, file.absolutePath, tagName)
-            } finally { cacheFile.delete() }
-
-            adapter.reloadAssets()
-
-            onMainDispatcher {
-                snackbar(R.string.route_asset_updated).show()
-            }
-        } finally {
-            client.close()
-        }
-    }
-
-    suspend fun updateCustomAsset(file: File, versionFile: File) {
-        Libcore.waitForAssets()
-        val fileName = file.name
-        val url: String = if (fileName == "geoip.db") {
-            DataStore.rulesGeoipUrl
-        } else if (fileName == "geosite.db") {
-            DataStore.rulesGeositeUrl
-        } else {
-            return
-        }
-        val client = Libcore.newHttpClient().apply {
-            modernTLS()
-            keepAlive()
-            if (DataStore.downloadsProxyOnly) {
-                requireSocks5(DataStore.socksPort, DataStore.mixedUsername, DataStore.mixedPassword)
-            } else {
-                trySocks5(DataStore.socksPort, DataStore.mixedUsername, DataStore.mixedPassword)
-            }
-        }
-        try {
-            val response = client.newRequest().apply {
-                setURL(url)
-            }.execute()
-            val cacheFile = File.createTempFile(".download-", ".db", file.parentFile)
-            try {
-                response.writeTo(cacheFile.canonicalPath)
-                Libcore.installRouteAssetVersion(cacheFile.absolutePath, file.absolutePath, "Custom")
-            } finally { cacheFile.delete() }
-
-            adapter.reloadAssets()
-            onMainDispatcher {
-                snackbar(R.string.route_asset_updated).show()
-            }
-        } finally {
-            client.close()
-        }
-    }
-
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
@@ -390,19 +278,5 @@ class AssetsActivity : ThemedActivity() {
         if (::adapter.isInitialized) {
             adapter.reloadAssets()
         }
-    }
-
-    private data class RuleAssetsProvider(
-        val repoByFileName: Map<String, String>
-    ) {
-        constructor(
-            geoipRepo: String,
-            geositeRepo: String = geoipRepo,
-        ) : this(
-            mapOf(
-                "geoip.db" to geoipRepo,
-                "geosite.db" to geositeRepo,
-            )
-        )
     }
 }

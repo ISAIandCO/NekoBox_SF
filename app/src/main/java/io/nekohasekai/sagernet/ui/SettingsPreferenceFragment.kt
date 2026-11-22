@@ -26,6 +26,7 @@ import io.nekohasekai.sagernet.database.preference.EditTextPreferenceModifiers
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.ui.requestPinClearCacheShortcut
 import io.nekohasekai.sagernet.utils.Theme
+import libcore.Libcore
 import moe.matsuri.nb4a.ui.*
 import io.nekohasekai.sagernet.fmt.directFallbackConfig
 import java.io.File
@@ -204,6 +205,16 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
             (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
             needReload()
             true
+        }
+
+        findPreference<EditTextPreference>(Key.RULES_UPDATE_INTERVAL)!!.setOnPreferenceChangeListener { _, value ->
+            try {
+                Libcore.geoAssetUpdateIntervalMillis(value.toString())
+                true
+            } catch (_: Exception) {
+                Toast.makeText(requireContext(), R.string.ruleset_update_interval_invalid, Toast.LENGTH_SHORT).show()
+                false
+            }
         }
 
         val rulesProvider = findPreference<SimpleMenuPreference>(Key.RULES_PROVIDER)!!

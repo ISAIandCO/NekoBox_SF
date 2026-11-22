@@ -543,4 +543,7 @@
     <string name="backup_encryption_summary">От 8 символов для защиты экспорта, отправки и копий в WebDAV. Пустое поле — копия без шифрования. Пароль не сохраняется.</string>
     <string name="backup_password_short">Пароль резервной копии должен содержать минимум 8 символов.</string>
     <string name="backup_decrypt_failed">Неверный пароль или повреждённая копия. Данные не восстановлены.</string>
+    <string name="ruleset_update_interval">Интервал обновления ресурсов правил</string>
+    <string name="ruleset_update_interval_summary">Проверка GeoIP, GeoSite и удалённых RuleSet. Примеры: 72h, 30m. Базы Geo проверяются не чаще раза в 15 минут. Значение 0 отключает автообновление баз Geo.</string>
+    <string name="ruleset_update_interval_invalid">Укажите интервал, например 72h или 30m, либо 0.</string>
 </resources>
