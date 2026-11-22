@@ -188,6 +188,7 @@ object Key {
     const val SUBSCRIPTION_FORCE_RESOLVE = "subscriptionForceResolve"
     const val SUBSCRIPTION_DEDUPLICATION = "subscriptionDeduplication"
     const val SUBSCRIPTION_UPDATE = "subscriptionUpdate"
+    const val SUBSCRIPTION_UPDATE_MODE = "subscriptionUpdateMode"
     const val SUBSCRIPTION_UPDATE_WHEN_CONNECTED_ONLY = "subscriptionUpdateWhenConnectedOnly"
     const val SUBSCRIPTION_USER_AGENT = "subscriptionUserAgent"
     const val SUBSCRIPTION_SEND_HWID = "subscriptionSendHwid"
@@ -239,6 +240,12 @@ object GroupOrder {
     const val ORIGIN = 0
     const val BY_NAME = 1
     const val BY_DELAY = 2
+}
+
+object SubscriptionUpdateMode {
+    const val REVIEW_CRITICAL = 0
+    const val DEFER_ACTIVE = 1
+    const val APPLY_IMMEDIATELY = 2
 }
 
 object SubscriptionFilterMode {

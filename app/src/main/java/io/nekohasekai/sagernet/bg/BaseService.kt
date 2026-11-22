@@ -51,7 +51,7 @@ class BaseService {
         @Volatile var powerRestricted = false
         var networkSignature: String? = null
         var networkPolicySignature: String? = null
-        var proxy: ProxyInstance? = null
+        @Volatile var proxy: ProxyInstance? = null
         var notification: ServiceNotification? = null
 
         val receiver = broadcastReceiver { ctx, intent ->
@@ -108,6 +108,7 @@ class BaseService {
             state = s
             DataStore.serviceState = s
             binder.stateChanged(s, msg)
+            if (s == State.Connected || s == State.Stopped) SubscriptionUpdater.onActiveProfilesChanged()
         }
     }
 
@@ -290,11 +291,16 @@ class BaseService {
                 // Reconnect through the normal startup path, which reports invalid configurations.
                 return false
             }
-            if (tmpBox.lastSelectorGroupId == data.proxy?.lastSelectorGroupId &&
-                tmpBox.config.warpExitId == data.proxy?.config?.warpExitId) {
-                return true
-            }
-            return false
+            val running = data.proxy ?: return false
+            if (tmpBox.lastSelectorGroupId != running.lastSelectorGroupId ||
+                tmpBox.config.warpExitId != running.config.warpExitId
+            ) return false
+
+            // A hot selector already holds the old parameters for every candidate.
+            // If a subscription changed them, a user switch must load the new configuration.
+            val runningProfiles = running.config.trafficMap.values.flatten().associate { it.id to it.requireBean() }
+            val newProfiles = tmpBox.config.trafficMap.values.flatten().associate { it.id to it.requireBean() }
+            return runningProfiles == newProfiles
         }
 
         suspend fun startProcesses() {

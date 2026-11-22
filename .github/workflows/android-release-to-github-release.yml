@@ -2,7 +2,7 @@ name: Android Release APK
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, 'prerelease/v*']
     paths-ignore: ['**/*.md']
   workflow_dispatch:
     inputs:
@@ -19,6 +19,11 @@ on:
         required: false
         type: boolean
         default: false
+      prerelease:
+        description: 'Mark the published release as a pre-release.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,14 +34,18 @@ concurrency:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  NEKO_DEV_BUILD: ${{ github.ref_name == 'dev' && '1' || '0' }}
+  NEKO_PRERELEASE: ${{ (inputs.prerelease || github.ref_name == 'dev' || startsWith(github.ref, 'refs/heads/prerelease/v')) && '1' || '0' }}
+  NEKO_PUBLISH_PRERELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[publish prerelease]') && 'true' || 'false' }}
   KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
   ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
   ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
 
 jobs:
   build-and-publish:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref_name == 'dev' && contains(github.event.head_commit.message, '[build]')) ||
+      (startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[publish prerelease]'))
     timeout-minutes: 90
     runs-on: ubuntu-24.04
     steps:
@@ -46,9 +55,13 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_TITLE: ${{ inputs.title }}
-        run: python3 .github/scripts/prepare_release.py
+        run: |
+          if [ "$NEKO_PUBLISH_PRERELEASE" = true ]; then
+            export INPUT_TAG="${GITHUB_REF_NAME#prerelease/}"
+          fi
+          python3 .github/scripts/prepare_release.py
       - name: Reject an existing release before building
-        if: inputs.publish
+        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -132,7 +145,7 @@ jobs:
           name: release-apks
           path: release-assets/
       - name: Publish GitHub release
-        if: inputs.publish
+        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -142,5 +155,5 @@ jobs:
             exit 1
           fi
           OPTIONS=()
-          if [ "$NEKO_DEV_BUILD" = 1 ]; then OPTIONS+=(--prerelease --latest=false); fi
+          if [ "$NEKO_PRERELEASE" = 1 ]; then OPTIONS+=(--prerelease --latest=false); fi
           gh release create "$RELEASE_TAG" release-assets/* --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file release-notes.txt "${OPTIONS[@]}"

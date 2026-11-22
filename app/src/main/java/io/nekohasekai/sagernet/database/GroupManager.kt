@@ -92,6 +92,7 @@ object GroupManager {
 
     suspend fun updateGroup(group: ProxyGroup) {
         SagerDatabase.groupDao.updateGroup(group)
+        if (group.subscription?.reviewRequired != true) SubscriptionUpdater.clearReviewNotification(group.id)
         iterator { groupUpdated(group) }
         if (group.type == GroupType.SUBSCRIPTION) {
             SubscriptionUpdater.reconfigureUpdater()
@@ -100,6 +101,7 @@ object GroupManager {
 
     suspend fun deleteGroup(groupId: Long) {
         SubscriptionHistory.delete(groupId)
+        SubscriptionUpdater.clearReviewNotification(groupId)
         SagerDatabase.groupDao.deleteById(groupId)
         SagerDatabase.proxyDao.deleteByGroup(groupId)
         iterator { groupRemoved(groupId) }
@@ -107,7 +109,10 @@ object GroupManager {
     }
 
     suspend fun deleteGroup(group: List<ProxyGroup>) {
-        group.forEach { SubscriptionHistory.delete(it.id) }
+        group.forEach {
+            SubscriptionHistory.delete(it.id)
+            SubscriptionUpdater.clearReviewNotification(it.id)
+        }
         SagerDatabase.groupDao.deleteGroup(group)
         SagerDatabase.proxyDao.deleteByGroup(group.map { it.id }.toLongArray())
         for (proxyGroup in group) iterator { groupRemoved(proxyGroup.id) }

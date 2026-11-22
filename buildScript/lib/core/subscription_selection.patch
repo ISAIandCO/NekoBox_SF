@@ -1,0 +1,24 @@
+--- a/protocol/group/urltest.go
++++ b/protocol/group/urltest.go
+@@ -129,0 +130,13 @@
++}
++
++// SelectedOutboundTags reports the TCP and UDP selections independently.
++func (s *URLTest) SelectedOutboundTags() (tcp, udp string) {
++	if g := s.group; g != nil {
++		if selected := g.selectedOutboundTCP.Load(); selected != nil {
++			tcp = selected.Tag()
++		}
++		if selected := g.selectedOutboundUDP.Load(); selected != nil {
++			udp = selected.Tag()
++		}
++	}
++	return
+@@ -678,0 +692,3 @@
++// OnURLTestSelectionChanged is set by the Android bridge during initialization.
++var OnURLTestSelectionChanged func()
++
+@@ -715,0 +732,3 @@
++		if g.strategy != "direct-fallback" && OnURLTestSelectionChanged != nil {
++			OnURLTestSelectionChanged()
++		}

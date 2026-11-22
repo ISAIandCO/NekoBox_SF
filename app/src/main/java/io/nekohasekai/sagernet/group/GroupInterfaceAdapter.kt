@@ -1,7 +1,10 @@
 package io.nekohasekai.sagernet.group
 
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import io.nekohasekai.sagernet.R
+import io.nekohasekai.sagernet.SubscriptionUpdateMode
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProxyGroup
 import io.nekohasekai.sagernet.ktx.onMainDispatcher
@@ -21,14 +24,17 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
     private suspend fun ask(title: Int, positive: Int, message: String): Boolean =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main.immediate) {
             kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
-                if (context.isFinishing || context.isDestroyed) { continuation.resume(false); return@suspendCancellableCoroutine }
+                if (!canShowDialog()) {
+                    continuation.resume(false)
+                    return@suspendCancellableCoroutine
+                }
                 val dialog = MaterialAlertDialogBuilder(context).setTitle(title).setMessage(message)
                     .setPositiveButton(positive) { _, _ -> if (continuation.isActive) continuation.resume(true) }
                     .setNegativeButton(android.R.string.cancel) { _, _ -> if (continuation.isActive) continuation.resume(false) }
                     .setOnCancelListener { if (continuation.isActive) continuation.resume(false) }
                     .create()
-                val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-                    if (event == androidx.lifecycle.Lifecycle.Event.ON_DESTROY) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_STOP || event == Lifecycle.Event.ON_DESTROY) {
                         if (continuation.isActive) continuation.resume(false)
                         dialog.dismiss()
                     }
@@ -43,6 +49,9 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
             }
         }
 
+    private fun canShowDialog(): Boolean = !context.isFinishing &&
+        context.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+
     override suspend fun onUpdateSuccess(
         group: ProxyGroup,
         changed: Int,
@@ -52,6 +61,7 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
         duplicate: List<String>,
         byUser: Boolean
     ) {
+        if (!canShowDialog()) return
         if (changed == 0 && duplicate.isEmpty()) {
             if (byUser) context.snackbar(
                     context.getString(
@@ -60,6 +70,7 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
             ).show()
         } else {
             context.snackbar(context.getString(R.string.group_updated, group.name, changed)).show()
+            if (group.subscription?.updateMode == SubscriptionUpdateMode.APPLY_IMMEDIATELY) return
 
             var status = ""
             if (added.isNotEmpty()) {
@@ -86,6 +97,7 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
 
             onMainDispatcher {
                 delay(1000L)
+                if (!canShowDialog()) return@onMainDispatcher
 
                 MaterialAlertDialogBuilder(context).setTitle(
                         context.getString(
@@ -100,7 +112,7 @@ class GroupInterfaceAdapter(val context: ThemedActivity) : GroupManager.Interfac
 
     override suspend fun onUpdateFailure(group: ProxyGroup, message: String) {
         onMainDispatcher {
-            context.snackbar(message).show()
+            if (canShowDialog()) context.snackbar(message).show()
         }
     }
 

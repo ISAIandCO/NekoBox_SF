@@ -37,7 +37,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var selectedGroup by configurationStore.long(Key.PROFILE_GROUP) { currentGroupId() }
 
     var vpnService: VpnService? = null
-    var baseService: BaseService.Interface? = null
+    @Volatile var baseService: BaseService.Interface? = null
 
     var runningTest = false
 
@@ -324,6 +324,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var subscriptionCustomHwidParams by profileCacheStore.string(Key.SUBSCRIPTION_CUSTOM_HWID_PARAMS)
     var subscriptionServerDns by profileCacheStore.string(Key.SUBSCRIPTION_SERVER_DNS)
     var subscriptionHeaders by profileCacheStore.string(Key.SUBSCRIPTION_HEADERS)
+    var subscriptionUpdateMode by profileCacheStore.stringToInt(Key.SUBSCRIPTION_UPDATE_MODE) { SubscriptionUpdateMode.REVIEW_CRITICAL }
     var subscriptionAutoUpdate by profileCacheStore.boolean(Key.SUBSCRIPTION_AUTO_UPDATE)
     var subscriptionAutoUpdateDelay by profileCacheStore.stringToInt(Key.SUBSCRIPTION_AUTO_UPDATE_DELAY) { 360 }
     var subscriptionFilterMode by profileCacheStore.stringToInt(Key.SUBSCRIPTION_FILTER_MODE) { 0 }

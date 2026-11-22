@@ -8,6 +8,7 @@ import android.os.Build.VERSION_CODES
 import androidx.annotation.RequiresApi
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.ServiceNotification
+import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.Logs
@@ -81,11 +82,16 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         return DataStore.rulesProvider == 0
     }
 
+    override fun urlTest_OnSelectionChanged() {
+        if (DataStore.serviceState.connected) SubscriptionUpdater.onActiveProfilesChanged()
+    }
+
     override fun selector_OnProxySelected(selectorTag: String, tag: String) {
         if (selectorTag != "proxy") {
             Logs.d("other selector: $selectorTag")
             return
         }
+        SubscriptionUpdater.onActiveProfilesChanged()
         Libcore.resetAllConnections(true)
         DataStore.baseService?.apply {
             runOnDefaultDispatcher {

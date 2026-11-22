@@ -8,6 +8,7 @@ import com.esotericsoftware.kryo.io.ByteBufferOutput;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.nekohasekai.sagernet.SubscriptionUpdateMode;
 import io.nekohasekai.sagernet.fmt.Serializable;
 
 public class SubscriptionBean extends Serializable {
@@ -26,6 +27,11 @@ public class SubscriptionBean extends Serializable {
     public Boolean autoUpdate;
     public Integer autoUpdateDelay;
     public Integer lastUpdated;
+    public Integer updateMode;
+    public Integer lastChecked;
+    public Boolean reviewRequired;
+    public long[] deferredProfileIds;
+    public Boolean partialUpdateApplied;
     public Integer filterMode;
     public String filterRegex;
 
@@ -50,7 +56,7 @@ public class SubscriptionBean extends Serializable {
 
     @Override
     public void serializeToBuffer(ByteBufferOutput output) {
-        output.writeInt(4);
+        output.writeInt(5);
 
         output.writeInt(type);
 
@@ -76,6 +82,13 @@ public class SubscriptionBean extends Serializable {
         // v4: do not reuse upstream v3, occupied by this fork's HWID fields.
         output.writeString(serverDnsResolver);
         output.writeString(customHeaders);
+
+        output.writeInt(updateMode);
+        output.writeInt(lastChecked);
+        output.writeBoolean(reviewRequired);
+        output.writeVarInt(deferredProfileIds.length, true);
+        for (long profileId : deferredProfileIds) output.writeLong(profileId);
+        output.writeBoolean(partialUpdateApplied);
     }
 
     public void serializeForShare(ByteBufferOutput output) {
@@ -123,6 +136,25 @@ public class SubscriptionBean extends Serializable {
             serverDnsResolver = input.readString();
             customHeaders = input.readString();
         }
+        if (version >= 5) {
+            updateMode = input.readInt();
+            lastChecked = input.readInt();
+            reviewRequired = input.readBoolean();
+            int count = input.readVarInt(true);
+            if (count < 0 || count > (input.limit() - input.position()) / Long.BYTES) {
+                throw new IllegalArgumentException("Invalid deferred profile count");
+            }
+            deferredProfileIds = new long[count];
+            for (int i = 0; i < count; i++) deferredProfileIds[i] = input.readLong();
+            partialUpdateApplied = input.readBoolean();
+        }
+    }
+
+    public void resetUpdateStatus() {
+        lastChecked = 0;
+        reviewRequired = false;
+        deferredProfileIds = new long[0];
+        partialUpdateApplied = false;
     }
 
     public void deserializeFromShare(ByteBufferInput input) {
@@ -160,6 +192,14 @@ public class SubscriptionBean extends Serializable {
         if (autoUpdate == null) autoUpdate = false;
         if (autoUpdateDelay == null) autoUpdateDelay = 1440;
         if (lastUpdated == null) lastUpdated = 0;
+        if (updateMode == null || updateMode < SubscriptionUpdateMode.REVIEW_CRITICAL
+                || updateMode > SubscriptionUpdateMode.APPLY_IMMEDIATELY) {
+            updateMode = SubscriptionUpdateMode.REVIEW_CRITICAL;
+        }
+        if (lastChecked == null) lastChecked = 0;
+        if (reviewRequired == null) reviewRequired = false;
+        if (deferredProfileIds == null) deferredProfileIds = new long[0];
+        if (partialUpdateApplied == null) partialUpdateApplied = false;
         if (filterMode == null) filterMode = 0;
         if (filterRegex == null) filterRegex = "";
 

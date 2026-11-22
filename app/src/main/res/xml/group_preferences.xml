@@ -116,6 +116,14 @@
             app:summary="@string/subscription_custom_hwid_params_summary"
             app:title="@string/subscription_custom_hwid_params"
             app:useSimpleSummaryProvider="true" />
+        <moe.matsuri.nb4a.ui.SimpleMenuPreference
+            app:defaultValue="0"
+            app:entries="@array/subscription_update_modes"
+            app:entryValues="@array/int_array_3"
+            app:icon="@drawable/ic_baseline_security_24"
+            app:key="subscriptionUpdateMode"
+            app:title="@string/subscription_update_mode"
+            app:useSimpleSummaryProvider="true" />
         <SwitchPreferenceCompat
             app:icon="@drawable/ic_baseline_flip_camera_android_24"
             app:key="subscriptionAutoUpdate"

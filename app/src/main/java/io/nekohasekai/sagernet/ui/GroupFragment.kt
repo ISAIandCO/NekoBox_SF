@@ -22,6 +22,7 @@ import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.databinding.LayoutGroupItemBinding
 import io.nekohasekai.sagernet.fmt.toUniversalLink
+import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.group.GroupUpdater
 import io.nekohasekai.sagernet.ktx.*
 import io.nekohasekai.sagernet.widget.ListListener
@@ -172,6 +173,12 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             groupList.addAll(groups)
             groupListView.post {
                 notifyDataSetChanged()
+                val groupId = arguments?.getLong(MainActivity.EXTRA_SUBSCRIPTION_ID) ?: 0
+                val index = groupList.indexOfFirst { it.id == groupId }
+                if (index >= 0) {
+                    layoutManager.scrollToPosition(index)
+                    arguments?.remove(MainActivity.EXTRA_SUBSCRIPTION_ID)
+                }
             }
         }
 
@@ -372,6 +379,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                             if (GroupManager.userInterface?.confirm(getString(R.string.subscription_undo_confirm)) != true) return@runOnDefaultDispatcher
                             SagerDatabase.instance.withTransaction { SubscriptionHistory.restore(proxyGroup.id, revision) }
                             SubscriptionHistory.delete(proxyGroup.id)
+                            SubscriptionUpdater.clearReviewNotification(proxyGroup.id)
                             GroupManager.postUpdate(proxyGroup.id)
                             if (DataStore.serviceState.started) SagerNet.reloadService(true)
                         } catch (cancelled: kotlinx.coroutines.CancellationException) {
@@ -552,17 +560,20 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                         }
 
                         GroupType.SUBSCRIPTION -> {
-                            groupStatus.text = if (size == 0L) {
-                                getString(R.string.group_status_empty_subscription)
-                            } else {
-                                val date = Date(group.subscription!!.lastUpdated * 1000L)
-                                getString(
-                                    R.string.group_status_proxies_subscription,
-                                    size,
-                                    "${date.month + 1} - ${date.date}"
-                                )
+                            val subscription = group.subscription!!
+                            groupStatus.text = when {
+                                subscription.reviewRequired -> getString(R.string.subscription_review_required)
+                                subscription.deferredProfileIds.isNotEmpty() -> getString(R.string.subscription_active_deferred)
+                                size == 0L -> getString(R.string.group_status_empty_subscription)
+                                else -> {
+                                    val date = Date(subscription.lastUpdated * 1000L)
+                                    getString(
+                                        R.string.group_status_proxies_subscription,
+                                        size,
+                                        "${date.month + 1} - ${date.date}"
+                                    )
+                                }
                             }
-
                         }
                     }
                 }
