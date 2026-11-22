@@ -7,6 +7,21 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionBeanTest {
+    @Test fun explicitlySavedReviewModeRemainsSelected() {
+        val source = SubscriptionBean().apply {
+            initializeDefaultValues()
+            assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, updateMode.toInt())
+            updateMode = SubscriptionUpdateMode.REVIEW_CRITICAL
+        }
+        val output = ByteBufferOutput(1024)
+        source.serializeToBuffer(output)
+        val restored = SubscriptionBean().apply {
+            deserializeFromBuffer(ByteBufferInput(output.toBytes()))
+            initializeDefaultValues()
+        }
+        assertEquals(SubscriptionUpdateMode.REVIEW_CRITICAL, restored.updateMode.toInt())
+    }
+
     @Test fun versionFiveAndShareRoundTripPreserveSettings() {
         val source = SubscriptionBean().apply {
             initializeDefaultValues()
@@ -34,7 +49,7 @@ class SubscriptionBeanTest {
             assertEquals(source.serverDnsResolver, restored.serverDnsResolver)
             assertEquals(source.customHeaders, restored.customHeaders)
             if (share) {
-                assertEquals(SubscriptionUpdateMode.REVIEW_CRITICAL, restored.updateMode.toInt())
+                assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, restored.updateMode.toInt())
                 assertFalse(restored.reviewRequired)
                 assertTrue(restored.deferredProfileIds.isEmpty())
             } else {
@@ -69,7 +84,7 @@ class SubscriptionBeanTest {
         assertEquals("", restored.serverDnsResolver)
         assertEquals("", restored.customHeaders)
         assertEquals(100, restored.lastUpdated.toInt())
-        assertEquals(SubscriptionUpdateMode.REVIEW_CRITICAL, restored.updateMode.toInt())
+        assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, restored.updateMode.toInt())
         assertEquals(0, restored.lastChecked.toInt())
         assertFalse(restored.reviewRequired)
         assertTrue(restored.deferredProfileIds.isEmpty())

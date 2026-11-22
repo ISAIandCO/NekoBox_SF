@@ -117,7 +117,7 @@
             app:title="@string/subscription_custom_hwid_params"
             app:useSimpleSummaryProvider="true" />
         <moe.matsuri.nb4a.ui.SimpleMenuPreference
-            app:defaultValue="0"
+            app:defaultValue="2"
             app:entries="@array/subscription_update_modes"
             app:entryValues="@array/int_array_3"
             app:icon="@drawable/ic_baseline_security_24"

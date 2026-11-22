@@ -30,12 +30,13 @@ permissions:
 
 concurrency:
   group: android-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/heads/prerelease/v') }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
   NEKO_PRERELEASE: ${{ (inputs.prerelease || github.ref_name == 'dev' || startsWith(github.ref, 'refs/heads/prerelease/v')) && '1' || '0' }}
   NEKO_PUBLISH_PRERELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[publish prerelease]') && 'true' || 'false' }}
+  NEKO_REFRESH_PRERELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[refresh prerelease assets]') && 'true' || 'false' }}
   KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
   ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
   ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
@@ -45,7 +46,9 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.ref_name == 'dev' && contains(github.event.head_commit.message, '[build]')) ||
-      (startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[publish prerelease]'))
+      (startsWith(github.ref, 'refs/heads/prerelease/v') &&
+        (contains(github.event.head_commit.message, '[publish prerelease]') ||
+         contains(github.event.head_commit.message, '[refresh prerelease assets]')))
     timeout-minutes: 90
     runs-on: ubuntu-24.04
     steps:
@@ -56,16 +59,19 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_TITLE: ${{ inputs.title }}
         run: |
-          if [ "$NEKO_PUBLISH_PRERELEASE" = true ]; then
+          if [ "$NEKO_PUBLISH_PRERELEASE" = true ] || [ "$NEKO_REFRESH_PRERELEASE" = true ]; then
             export INPUT_TAG="${GITHUB_REF_NAME#prerelease/}"
           fi
           python3 .github/scripts/prepare_release.py
-      - name: Reject an existing release before building
-        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true'
+      - name: Check GitHub release before building
+        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true' || env.NEKO_REFRESH_PRERELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          if [ "$NEKO_REFRESH_PRERELEASE" = true ]; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+              --jq '.prerelease and (.draft | not) and (.immutable | not)' | grep -qx true
+          elif gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists; refusing to overwrite it."
             exit 1
           fi
@@ -144,8 +150,13 @@ jobs:
         with:
           name: release-apks
           path: release-assets/
+      - name: Replace verified pre-release assets
+        if: env.NEKO_REFRESH_PRERELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/refresh_prerelease_assets.py release-assets
       - name: Publish GitHub release
-        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true'
+        if: env.NEKO_REFRESH_PRERELEASE != 'true' && (inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

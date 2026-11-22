@@ -32,7 +32,12 @@ import kotlinx.coroutines.delay
 import moe.matsuri.nb4a.utils.Util
 import moe.matsuri.nb4a.utils.toBytesString
 import java.lang.NumberFormatException
-import java.util.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
+private val subscriptionDateFormat = DateTimeFormatter.ofPattern("yy.MM.dd HH:mm", Locale.ROOT)
 
 class GroupFragment : ToolbarFragment(R.layout.layout_group),
     Toolbar.OnMenuItemClickListener {
@@ -550,7 +555,7 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
             runOnDefaultDispatcher {
                 val size = SagerDatabase.proxyDao.countByGroup(group.id)
                 onMainDispatcher {
-                    @Suppress("DEPRECATION") when (group.type) {
+                    when (group.type) {
                         GroupType.BASIC -> {
                             if (size == 0L) {
                                 groupStatus.setText(R.string.group_status_empty)
@@ -564,13 +569,14 @@ class GroupFragment : ToolbarFragment(R.layout.layout_group),
                             groupStatus.text = when {
                                 subscription.reviewRequired -> getString(R.string.subscription_review_required)
                                 subscription.deferredProfileIds.isNotEmpty() -> getString(R.string.subscription_active_deferred)
-                                size == 0L -> getString(R.string.group_status_empty_subscription)
+                                subscription.lastUpdated <= 0 -> getString(R.string.group_status_empty_subscription)
                                 else -> {
-                                    val date = Date(subscription.lastUpdated * 1000L)
+                                    val date = subscriptionDateFormat.withZone(ZoneId.systemDefault())
+                                        .format(Instant.ofEpochSecond(subscription.lastUpdated.toLong()))
                                     getString(
                                         R.string.group_status_proxies_subscription,
                                         size,
-                                        "${date.month + 1} - ${date.date}"
+                                        date
                                     )
                                 }
                             }

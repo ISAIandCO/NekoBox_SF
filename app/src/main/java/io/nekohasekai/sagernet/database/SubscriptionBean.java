@@ -194,7 +194,7 @@ public class SubscriptionBean extends Serializable {
         if (lastUpdated == null) lastUpdated = 0;
         if (updateMode == null || updateMode < SubscriptionUpdateMode.REVIEW_CRITICAL
                 || updateMode > SubscriptionUpdateMode.APPLY_IMMEDIATELY) {
-            updateMode = SubscriptionUpdateMode.REVIEW_CRITICAL;
+            updateMode = SubscriptionUpdateMode.APPLY_IMMEDIATELY;
         }
         if (lastChecked == null) lastChecked = 0;
         if (reviewRequired == null) reviewRequired = false;
