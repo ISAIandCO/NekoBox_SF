@@ -10,6 +10,7 @@ import android.app.KeyguardManager
 import android.widget.Toast
 import io.nekohasekai.sagernet.Action
 import io.nekohasekai.sagernet.BootReceiver
+import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.aidl.ISagerNetService
@@ -53,17 +54,22 @@ class BaseService {
         var networkPolicySignature: String? = null
         @Volatile var proxy: ProxyInstance? = null
         var notification: ServiceNotification? = null
+        internal val subscriptionReload = SubscriptionReload(service)
 
         val receiver = broadcastReceiver { ctx, intent ->
             when (intent.action) {
                 Intent.ACTION_SHUTDOWN -> service.persistStats()
                 Action.RELOAD -> if (intent.getBooleanExtra("force", false)) service.stopRunner(restart = true) else service.reload()
+                Action.SUBSCRIPTION_UPDATED -> subscriptionReload.onSubscriptionChanged(
+                    intent.getLongExtra(SubscriptionReload.GROUP_ID, 0L)
+                )
                 // Action.SWITCH_WAKE_LOCK -> runOnDefaultDispatcher { service.switchWakeLock() }
                 PowerManager.ACTION_DEVICE_IDLE_MODE_CHANGED -> {
+                    val runningBox = proxy?.takeIf { it.isInitialized() }?.box
                     if (SagerNet.power.isDeviceIdleMode) {
-                        proxy?.box?.sleep()
+                        runningBox?.sleep()
                     } else {
-                        proxy?.box?.wake()
+                        runningBox?.wake()
                         if (DataStore.wakeResetConnections) {
                             Libcore.resetAllConnections(true)
                         }
@@ -88,6 +94,7 @@ class BaseService {
         var closeReceiverRegistered = false
         var networkRestartJob: Job? = null
         var restartAfterStop = false
+        var restartingSubscription = false
 
         val binder = Binder(this)
         var connectingJob: Job? = null
@@ -99,8 +106,13 @@ class BaseService {
             val restricted = pauseHealthChecks(SagerNet.power.isInteractive, keyguard.isKeyguardLocked, SagerNet.power.isDeviceIdleMode)
             val changed = powerRestricted != restricted
             powerRestricted = restricted
-            proxy?.box?.setProbesPaused(powerRestricted)
+            if (changed && !restricted) subscriptionReload.onUnlocked()
+            syncProbePause()
             if (changed) proxy?.looper?.onPowerChanged()
+        }
+
+        internal fun syncProbePause() {
+            if (state == State.Connected) proxy?.box?.setProbesPaused(powerRestricted || subscriptionReload.holdsProbes)
         }
 
         fun changeState(s: State, msg: String? = null) {
@@ -330,24 +342,29 @@ class BaseService {
             DefaultNetworkListener.stop(this)
         }
 
-        fun stopRunner(restart: Boolean = false, msg: String? = null) {
+        fun stopRunner(restart: Boolean = false, msg: String? = null, preparedProxy: ProxyInstance? = null) {
             data.networkRestartJob?.cancel()
             data.networkRestartJob = null
             DataStore.baseService = null
             DataStore.vpnService = null
 
             if (data.state == State.Stopping) {
-                if (restart) data.restartAfterStop = true
+                if (restart || data.restartingSubscription) data.restartAfterStop = restart
                 return
             }
             data.restartAfterStop = restart
-            data.notification?.destroy()
-            data.notification = null
+            data.restartingSubscription = preparedProxy != null
+            val selectedId = if (preparedProxy != null) DataStore.selectedProxy else null
+            if (preparedProxy == null) {
+                data.notification?.destroy()
+                data.notification = null
+            }
             this as Service
 
             data.changeState(State.Stopping)
 
             runOnMainDispatcher {
+                data.subscriptionReload.clear()
                 val connectingJob = data.connectingJob
                 connectingJob?.cancel()
                 data.proxy?.cancelStart()
@@ -368,7 +385,17 @@ class BaseService {
                 // stop the service if nothing has bound to it
                 val restartAfterStop = data.restartAfterStop
                 data.restartAfterStop = false
-                if (restartAfterStop) startRunner() else {
+                data.restartingSubscription = false
+                if (restartAfterStop && preparedProxy != null &&
+                    DataStore.serviceMode == Key.MODE_VPN && android.net.VpnService.prepare(this) == null
+                ) {
+                    // This service is still in the foreground, including when recovery happens on a locked screen.
+                    startProfile(preparedProxy.takeIf { DataStore.selectedProxy == selectedId })
+                } else if (restartAfterStop && preparedProxy == null) {
+                    startRunner()
+                } else {
+                    data.notification?.destroy()
+                    data.notification = null
                     stopSelf()
                 }
             }
@@ -447,6 +474,9 @@ class BaseService {
 
                     NetworkChangeAction.NONE -> Unit
                 }
+                if (data.subscriptionReload.hasPendingChanges) {
+                    runOnMainDispatcher { data.subscriptionReload.onNetworkAvailable() }
+                }
             }
         }
 
@@ -467,7 +497,9 @@ class BaseService {
             }
         }
 
-        fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = startProfile()
+
+        private fun startProfile(preparedProxy: ProxyInstance? = null): Int {
             DataStore.baseService = this
 
             val data = data
@@ -487,7 +519,10 @@ class BaseService {
             val policySelection = NetworkProfiles.select()
             data.networkPolicySignature = policySelection.identity
             policySelection.policy?.let { DataStore.selectedProxy = it.profileId }
-            val profile = SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
+            val prepared = preparedProxy?.takeIf {
+                policySelection.policy == null || policySelection.policy.profileId == it.profile.id
+            }
+            val profile = prepared?.profile ?: SagerDatabase.proxyDao.getById(DataStore.selectedProxy)
             if (profile == null) { // gracefully shutdown: https://stackoverflow.com/q/47337857/2245107
                 stopRunner(false, getString(R.string.profile_empty))
                 return Service.START_NOT_STICKY
@@ -495,12 +530,14 @@ class BaseService {
 
             val notificationTitle = ServiceNotification.genTitle(profile)
 
-            val proxy = ProxyInstance(profile, this)
+            val proxy = prepared ?: ProxyInstance(profile, this)
+            if (prepared != null && DataStore.selectedProxy != profile.id) DataStore.selectedProxy = profile.id
             data.proxy = proxy
             BootReceiver.enabled = DataStore.persistAcrossReboot
             if (!data.closeReceiverRegistered) {
                 val filter = IntentFilter().apply {
                     addAction(Action.RELOAD)
+                    if (this@Interface is VpnService) addAction(Action.SUBSCRIPTION_UPDATED)
                     addAction(Intent.ACTION_SHUTDOWN)
                     addAction(Action.CLOSE)
                     // addAction(Action.SWITCH_WAKE_LOCK)
@@ -544,12 +581,13 @@ class BaseService {
 
                     proxy.processes = GuardedProcessPool {
                         Logs.w(it)
-                        stopRunner(false, it.readableMessage)
+                        if (data.proxy === proxy && data.state.canStop) stopRunner(false, it.readableMessage)
                     }
 
                     withContext(Dispatchers.IO) { startProcesses() }
                     data.changeState(State.Connected)
                     data.updateProbePowerState()
+                    data.subscriptionReload.onConnected(prepared != null)
 
                     lateInit()
                 } catch (_: CancellationException) { // if the job was cancelled, it is canceller's responsibility to call stopRunner

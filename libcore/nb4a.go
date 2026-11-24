@@ -69,6 +69,9 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 	// nekoutils
 	nekoutils.Selector_OnProxySelected = intfNB4A.Selector_OnProxySelected
 	group.OnURLTestSelectionChanged = intfNB4A.UrlTest_OnSelectionChanged
+	if isBgProcess {
+		group.OnURLTestRecoveryFailed = intfNB4A.UrlTest_OnRecoveryFailed
+	}
 
 	// Set up some component
 	ready := make(chan struct{})

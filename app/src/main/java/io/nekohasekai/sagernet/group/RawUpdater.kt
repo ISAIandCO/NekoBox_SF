@@ -7,6 +7,7 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SubscriptionFilterMode
 import io.nekohasekai.sagernet.SubscriptionUpdateMode
 import io.nekohasekai.sagernet.bg.SubscriptionRuntime
+import io.nekohasekai.sagernet.bg.SubscriptionReload
 import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
@@ -254,6 +255,7 @@ internal object RawUpdater : GroupUpdater() {
         }
         val approvedIds = approvedRemovals.map { it.profileId }.toSet()
         val deletedIds = mutableSetOf<Long>()
+        var profilesChanged = false
         val reviewWasRequired = subscription.reviewRequired
         val result = SagerDatabase.instance.withTransaction {
             val currentGroup = SagerDatabase.groupDao.getById(proxyGroup.id)
@@ -363,8 +365,10 @@ internal object RawUpdater : GroupUpdater() {
             subscription.reviewRequired = plan.reviewRequired
             subscription.deferredProfileIds = plan.deferredIds.sorted().toLongArray()
             subscription.partialUpdateApplied = pending && (hasPreviousPartial || changesToApply)
+            subscription.profileRevision = previous.profileRevision + if (changesToApply) 1 else 0
             if (!pending) subscription.lastUpdated = now
             SagerDatabase.groupDao.updateGroup(proxyGroup)
+            profilesChanged = changesToApply
 
             when {
                 plan.reviewRequired -> SubscriptionUpdateResult.NEEDS_REVIEW
@@ -374,6 +378,7 @@ internal object RawUpdater : GroupUpdater() {
         }
         // The selected profile can be removed after its connection ends in partial mode.
         if (DataStore.selectedProxy in deletedIds) DataStore.selectedProxy = 0L
+        if (profilesChanged) SubscriptionReload.notifyChanged(proxyGroup.id)
         SubscriptionUpdater.reportStatus(proxyGroup.id, reviewWasRequired)
         if (result == SubscriptionUpdateResult.APPLIED) {
             userInterface?.onUpdateSuccess(proxyGroup, changed, added, updated, deleted, duplicate, byUser)

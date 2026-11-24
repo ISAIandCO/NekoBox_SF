@@ -95,10 +95,14 @@ class ConfigBuildResult(
     val warpExitId: String? = null,
 ) {
     data class IndexEntity(var chain: LinkedHashMap<Int, ProxyEntity>)
+
+    internal var subscriptionRevisions: Map<Long, Long> = emptyMap()
+    internal var subscriptionProbeGroups: Map<String, SubscriptionProbeGroup> = emptyMap()
 }
 
 fun buildConfig(
-    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false
+    proxy: ProxyEntity, forTest: Boolean = false, forExport: Boolean = false,
+    trackSubscriptionUpdates: Boolean = false,
 ): ConfigBuildResult {
     val warp = if (forTest) null else WarpConfigs.forProfile(proxy.requireBean())
     if (warp != null) {
@@ -132,6 +136,9 @@ fun buildConfig(
     }
 
     var mainOutboundTag: String? = null
+    // Read before resolving candidates so a concurrent subscription commit is detectable.
+    val subscriptionRevisions = if (trackSubscriptionUpdates) subscriptionProfileRevisions() else emptyMap()
+    val subscriptionProbeGroups = mutableMapOf<String, SubscriptionProbeGroup>()
     val trafficMap = HashMap<String, List<ProxyEntity>>()
     val tagMap = HashMap<Long, String>()
     val globalOutbounds = HashMap<Long, String>()
@@ -399,7 +406,7 @@ fun buildConfig(
         @Suppress("UNCHECKED_CAST")
         fun buildStaticChain(chainId: Long, entity: ProxyEntity): String {
             val profileList = entity.resolveChain()
-            val chainTrafficSet = HashSet<ProxyEntity>().apply {
+            val chainTrafficSet = LinkedHashSet<ProxyEntity>().apply {
                 plusAssign(profileList)
                 add(entity)
             }
@@ -660,6 +667,18 @@ fun buildConfig(
             })
 
             trafficMap[groupTag] = listOf(entity)
+            if (trackSubscriptionUpdates) {
+                val subscriptions = buildSet {
+                    if (entity.type == ProxyEntity.TYPE_FASTEST && bean.candidateMode == ChainBean.CANDIDATE_MODE_REGEX) {
+                        add(bean.sourceGroupId)
+                    }
+                    for (tag in candidateTags) {
+                        subscriptionProbeGroups[tag]?.let { addAll(it.subscriptionIds) }
+                        trafficMap[tag].orEmpty().forEach { add(it.groupId) }
+                    }
+                }.intersect(subscriptionRevisions.keys)
+                subscriptionProbeGroups[groupTag] = SubscriptionProbeGroup(candidateTags, subscriptions)
+            }
             return groupTag
         }
 
@@ -1177,6 +1196,9 @@ fun buildConfig(
             if (buildSelector) group!!.id else -1L,
             mainOutboundTag,
             warp?.id
-        )
+        ).also {
+            it.subscriptionRevisions = subscriptionRevisions
+            it.subscriptionProbeGroups = subscriptionProbeGroups
+        }
     }
 }

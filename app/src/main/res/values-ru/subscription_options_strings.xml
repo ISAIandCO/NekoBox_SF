@@ -14,6 +14,8 @@
     <string name="subscription_review_required">Критические изменения требуют ручной проверки</string>
     <string name="subscription_review_notification">Откройте «Группы», чтобы проверить и применить изменения.</string>
     <string name="subscription_active_deferred">Изменения отложены до отключения затронутых профилей</string>
+    <string name="restart_profile_on_subscription_update">Перезапускать активную группу после обновления подписки</string>
+    <string name="restart_profile_on_subscription_update_summary">Применять изменения в «Водопаде» и «Самом быстром» после разблокировки или при отсутствии рабочих серверов для текущего трафика.</string>
     <string-array name="subscription_update_modes">
         <item>@string/subscription_mode_review</item>
         <item>@string/subscription_mode_partial</item>

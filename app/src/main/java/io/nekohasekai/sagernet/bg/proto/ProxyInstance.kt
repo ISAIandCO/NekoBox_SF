@@ -2,24 +2,30 @@ package io.nekohasekai.sagernet.bg.proto
 
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.ServiceNotification
+import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.ProxyEntity
+import io.nekohasekai.sagernet.fmt.ConfigBuildResult
+import io.nekohasekai.sagernet.fmt.buildConfig
 import kotlinx.coroutines.runBlocking
 
-class ProxyInstance(profile: ProxyEntity, var service: BaseService.Interface? = null) :
-    BoxInstance(profile) {
+class ProxyInstance(
+    profile: ProxyEntity,
+    var service: BaseService.Interface? = null,
+    private val preparedConfig: ConfigBuildResult? = null,
+) : BoxInstance(profile) {
 
     var notTmp = true
 
     var lastSelectorGroupId = -1L
+    @Volatile var activeProfileId = profile.id
     var displayProfileName = ServiceNotification.genTitle(profile)
 
     // for TrafficLooper
     var looper: TrafficLooper? = null
 
     override fun buildConfig() {
-        super.buildConfig()
-        lastSelectorGroupId = super.config.selectorGroupId
-        //
+        config = preparedConfig ?: buildConfig(profile, trackSubscriptionUpdates = service is VpnService)
+        lastSelectorGroupId = config.selectorGroupId
     }
 
     // only use this in temporary instance

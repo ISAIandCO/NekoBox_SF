@@ -32,6 +32,7 @@ public class SubscriptionBean extends Serializable {
     public Boolean reviewRequired;
     public long[] deferredProfileIds;
     public Boolean partialUpdateApplied;
+    public long profileRevision;
     public Integer filterMode;
     public String filterRegex;
 
@@ -56,7 +57,7 @@ public class SubscriptionBean extends Serializable {
 
     @Override
     public void serializeToBuffer(ByteBufferOutput output) {
-        output.writeInt(5);
+        output.writeInt(6);
 
         output.writeInt(type);
 
@@ -89,6 +90,7 @@ public class SubscriptionBean extends Serializable {
         output.writeVarInt(deferredProfileIds.length, true);
         for (long profileId : deferredProfileIds) output.writeLong(profileId);
         output.writeBoolean(partialUpdateApplied);
+        output.writeLong(profileRevision);
     }
 
     public void serializeForShare(ByteBufferOutput output) {
@@ -148,6 +150,7 @@ public class SubscriptionBean extends Serializable {
             for (int i = 0; i < count; i++) deferredProfileIds[i] = input.readLong();
             partialUpdateApplied = input.readBoolean();
         }
+        profileRevision = version >= 6 ? input.readLong() : 0L;
     }
 
     public void resetUpdateStatus() {

@@ -56,28 +56,40 @@ abstract class BoxInstance(
         box = Libcore.newSingBoxInstance(config.config, LocalResolverImpl)
     }
 
+    internal fun initExternalPlugins(config: ConfigBuildResult) {
+        for ((chain) in config.externalIndex) {
+            for (profile in chain.values) {
+                val plugin = when (profile.requireBean()) {
+                    is TrojanGoBean -> "trojan-go-plugin"
+                    is MieruBean -> "mieru-plugin"
+                    is NaiveBean -> "naive-plugin"
+                    is HysteriaBean -> "hysteria-plugin"
+                    else -> continue
+                }
+                initPlugin(plugin)
+            }
+        }
+    }
+
     open suspend fun init() {
         buildConfig()
+        initExternalPlugins(config)
         for ((chain) in config.externalIndex) {
             chain.entries.forEachIndexed { index, (port, profile) ->
                 when (val bean = profile.requireBean()) {
                     is TrojanGoBean -> {
-                        initPlugin("trojan-go-plugin")
                         pluginConfigs[port] = profile.type to bean.buildTrojanGoConfig(port)
                     }
 
                     is MieruBean -> {
-                        initPlugin("mieru-plugin")
                         pluginConfigs[port] = profile.type to bean.buildMieruConfig(port)
                     }
 
                     is NaiveBean -> {
-                        initPlugin("naive-plugin")
                         pluginConfigs[port] = profile.type to bean.buildNaiveConfig(port)
                     }
 
                     is HysteriaBean -> {
-                        initPlugin("hysteria-plugin")
                         pluginConfigs[port] = profile.type to bean.buildHysteria1Config(port) {
                             File(
                                 app.cacheDir, "hysteria_" + SystemClock.elapsedRealtime() + ".ca"

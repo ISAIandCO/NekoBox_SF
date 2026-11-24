@@ -14,6 +14,8 @@
     <string name="subscription_review_required">Critical changes require manual review</string>
     <string name="subscription_review_notification">Open Groups to review and apply the changes.</string>
     <string name="subscription_active_deferred">Changes deferred until the affected profiles are inactive</string>
+    <string name="restart_profile_on_subscription_update">Restart active group after subscription updates</string>
+    <string name="restart_profile_on_subscription_update_summary">Apply changes to Waterfall and Fastest when the screen is unlocked, or when the group has no usable server for active traffic.</string>
     <string-array name="subscription_update_modes">
         <item>@string/subscription_mode_review</item>
         <item>@string/subscription_mode_partial</item>

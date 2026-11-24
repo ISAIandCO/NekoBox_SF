@@ -10,6 +10,7 @@ type NB4AInterface interface {
 	UseOfficialAssets() bool
 	Selector_OnProxySelected(selectorTag string, tag string)
 	UrlTest_OnSelectionChanged()
+	UrlTest_OnRecoveryFailed(groupTag string)
 }
 
 type BoxPlatformInterface interface {

@@ -97,6 +97,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var restartProfileOnNetworkChange by configurationStore.boolean(
         Key.RESTART_PROFILE_ON_NETWORK_CHANGE
     ) { true }
+    var restartProfileOnSubscriptionUpdate by configurationStore.boolean(
+        Key.RESTART_PROFILE_ON_SUBSCRIPTION_UPDATE
+    ) { true }
     var wakeResetConnections by configurationStore.boolean(Key.WAKE_RESET_CONNECTIONS)
 
     var isExpert by configurationStore.boolean(Key.APP_EXPERT)
