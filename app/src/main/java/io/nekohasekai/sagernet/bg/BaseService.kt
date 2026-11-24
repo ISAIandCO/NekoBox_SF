@@ -387,7 +387,7 @@ class BaseService {
                 data.restartAfterStop = false
                 data.restartingSubscription = false
                 if (restartAfterStop && preparedProxy != null &&
-                    DataStore.serviceMode == Key.MODE_VPN && android.net.VpnService.prepare(this) == null
+                    DataStore.serviceMode == Key.MODE_VPN && android.net.VpnService.prepare(this@Interface as Context) == null
                 ) {
                     // This service is still in the foreground, including when recovery happens on a locked screen.
                     startProfile(preparedProxy.takeIf { DataStore.selectedProxy == selectedId })
