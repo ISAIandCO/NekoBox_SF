@@ -6,6 +6,19 @@
     <string name="subscription_headers">HTTP-заголовки</string>
     <string name="subscription_headers_summary">По одному Name: value на строку. Значения скрыты и не передаются при перенаправлении на другой сайт.</string>
     <string name="subscription_remove_referenced">Обновление удалит профили, используемые маршрутами или группами:\n%1$s\n\nУдалить их? Существующие ссылки перестанут работать.</string>
-    <string name="subscription_requires_manual_update">Обновление удаляет используемые профили. Обновите подписку вручную для просмотра изменений.</string>
     <string name="subscription_changed_during_update">Во время просмотра обновления профили изменились. Повторите обновление.</string>
+    <string name="subscription_update_mode">Изменения подписки</string>
+    <string name="subscription_mode_review">Проверять критические изменения используемых профилей</string>
+    <string name="subscription_mode_partial">При автообновлении отложить активный профиль</string>
+    <string name="subscription_mode_unchecked">Применять без проверки изменений</string>
+    <string name="subscription_review_required">Критические изменения требуют ручной проверки</string>
+    <string name="subscription_review_notification">Откройте «Группы», чтобы проверить и применить изменения.</string>
+    <string name="subscription_active_deferred">Изменения отложены до отключения затронутых профилей</string>
+    <string name="restart_profile_on_subscription_update">Перезапускать активную группу после обновления подписки</string>
+    <string name="restart_profile_on_subscription_update_summary">Применять изменения в «Водопаде» и «Самом быстром» после разблокировки или при отсутствии рабочих серверов для текущего трафика.</string>
+    <string-array name="subscription_update_modes">
+        <item>@string/subscription_mode_review</item>
+        <item>@string/subscription_mode_partial</item>
+        <item>@string/subscription_mode_unchecked</item>
+    </string-array>
 </resources>

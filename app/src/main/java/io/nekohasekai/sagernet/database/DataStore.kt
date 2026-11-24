@@ -6,6 +6,7 @@ import io.nekohasekai.sagernet.CONNECTION_TEST_URL
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.IPv6Mode
 import io.nekohasekai.sagernet.Key
+import io.nekohasekai.sagernet.SubscriptionUpdateMode
 import io.nekohasekai.sagernet.TunImplementation
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.VpnService
@@ -37,7 +38,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var selectedGroup by configurationStore.long(Key.PROFILE_GROUP) { currentGroupId() }
 
     var vpnService: VpnService? = null
-    var baseService: BaseService.Interface? = null
+    @Volatile var baseService: BaseService.Interface? = null
 
     var runningTest = false
 
@@ -95,6 +96,9 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var networkChangeResetConnections by configurationStore.boolean(Key.NETWORK_CHANGE_RESET_CONNECTIONS) { true }
     var restartProfileOnNetworkChange by configurationStore.boolean(
         Key.RESTART_PROFILE_ON_NETWORK_CHANGE
+    ) { true }
+    var restartProfileOnSubscriptionUpdate by configurationStore.boolean(
+        Key.RESTART_PROFILE_ON_SUBSCRIPTION_UPDATE
     ) { true }
     var wakeResetConnections by configurationStore.boolean(Key.WAKE_RESET_CONNECTIONS)
 
@@ -324,6 +328,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var subscriptionCustomHwidParams by profileCacheStore.string(Key.SUBSCRIPTION_CUSTOM_HWID_PARAMS)
     var subscriptionServerDns by profileCacheStore.string(Key.SUBSCRIPTION_SERVER_DNS)
     var subscriptionHeaders by profileCacheStore.string(Key.SUBSCRIPTION_HEADERS)
+    var subscriptionUpdateMode by profileCacheStore.stringToInt(Key.SUBSCRIPTION_UPDATE_MODE) { SubscriptionUpdateMode.APPLY_IMMEDIATELY }
     var subscriptionAutoUpdate by profileCacheStore.boolean(Key.SUBSCRIPTION_AUTO_UPDATE)
     var subscriptionAutoUpdateDelay by profileCacheStore.stringToInt(Key.SUBSCRIPTION_AUTO_UPDATE_DELAY) { 360 }
     var subscriptionFilterMode by profileCacheStore.stringToInt(Key.SUBSCRIPTION_FILTER_MODE) { 0 }

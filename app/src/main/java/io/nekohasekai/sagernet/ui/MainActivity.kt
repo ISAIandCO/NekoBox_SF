@@ -71,6 +71,8 @@ class MainActivity : ThemedActivity(),
     companion object {
         const val ACTION_CLEAR_CACHE_AND_RESTART = "com.isaiandco.neko.action.CLEAR_CACHE_AND_RESTART"
         const val EXTRA_CLEAR_CACHE_AND_RESTART = "extraClearCacheAndRestart"
+        const val ACTION_REVIEW_SUBSCRIPTION = "com.isaiandco.neko.action.REVIEW_SUBSCRIPTION"
+        const val EXTRA_SUBSCRIPTION_ID = "subscriptionId"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -182,6 +184,17 @@ class MainActivity : ThemedActivity(),
     }
 
     private fun handleSpecialIntent(intent: Intent): Boolean {
+        if (intent.action == ACTION_REVIEW_SUBSCRIPTION) {
+            val groupId = intent.getLongExtra(EXTRA_SUBSCRIPTION_ID, 0)
+            intent.action = null
+            if (groupId > 0) {
+                navigation.setCheckedItem(R.id.nav_group)
+                displayFragment(GroupFragment().apply {
+                    arguments = Bundle().apply { putLong(EXTRA_SUBSCRIPTION_ID, groupId) }
+                })
+            }
+            return true
+        }
         val fromShortcut = intent.getBooleanExtra(EXTRA_CLEAR_CACHE_AND_RESTART, false)
         if (!fromShortcut && intent.action != ACTION_CLEAR_CACHE_AND_RESTART) return false
 

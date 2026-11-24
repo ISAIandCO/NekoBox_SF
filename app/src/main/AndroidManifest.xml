@@ -347,6 +347,12 @@
         </service>
 
         <provider
+            android:name=".bg.SubscriptionRuntimeProvider"
+            android:authorities="${applicationId}.subscription-runtime"
+            android:exported="false"
+            android:process=":bg" />
+
+        <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.cache"
             android:exported="false"

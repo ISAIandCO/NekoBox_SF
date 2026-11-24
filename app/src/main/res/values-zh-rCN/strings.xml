@@ -541,8 +541,9 @@
     <string name="backup_in_progress">备份正在进行中</string>
     <string name="restore_in_progress">恢复正在进行中</string>
     <string name="restore_cancelled">恢复操作已取消</string>
-    <string name="ruleset_update_interval">RuleSet 更新间隔</string>
-    <string name="ruleset_update_interval_summary">远程 RuleSet 自动更新的时间间隔。例如：1h、30m、3600s。设为 0 表示禁用自动更新</string>
+    <string name="ruleset_update_interval">规则资源更新间隔</string>
+    <string name="ruleset_update_interval_summary">检查 GeoIP、GeoSite 和远程规则集的更新。例如：72h、30m。Geo 数据库至少间隔 15 分钟检查，设为 0 可关闭数据库自动更新。</string>
+    <string name="ruleset_update_interval_invalid">请输入 72h、30m 等时长，或输入 0。</string>
     <string name="ruleset_prefix_error">Ruleset格式错误: 必须以rsip:或rssite:开头</string>
     <string name="clear_cache">清理缓存</string>
     <string name="clear_cache_summary">清理应用缓存文件，解决一些异常问题</string>

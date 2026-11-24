@@ -2,11 +2,27 @@ package io.nekohasekai.sagernet.database
 
 import com.esotericsoftware.kryo.io.ByteBufferInput
 import com.esotericsoftware.kryo.io.ByteBufferOutput
+import io.nekohasekai.sagernet.SubscriptionUpdateMode
 import org.junit.Assert.*
 import org.junit.Test
 
 class SubscriptionBeanTest {
-    @Test fun versionFourAndShareRoundTripPreserveNewSettings() {
+    @Test fun explicitlySavedReviewModeRemainsSelected() {
+        val source = SubscriptionBean().apply {
+            initializeDefaultValues()
+            assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, updateMode.toInt())
+            updateMode = SubscriptionUpdateMode.REVIEW_CRITICAL
+        }
+        val output = ByteBufferOutput(1024)
+        source.serializeToBuffer(output)
+        val restored = SubscriptionBean().apply {
+            deserializeFromBuffer(ByteBufferInput(output.toBytes()))
+            initializeDefaultValues()
+        }
+        assertEquals(SubscriptionUpdateMode.REVIEW_CRITICAL, restored.updateMode.toInt())
+    }
+
+    @Test fun databaseAndShareRoundTripPreserveSettings() {
         val source = SubscriptionBean().apply {
             initializeDefaultValues()
             link = "https://subscription.test/nodes"
@@ -14,6 +30,12 @@ class SubscriptionBeanTest {
             customHwidParams = "hwid=fixture"
             serverDnsResolver = "https://dns.example/dns-query"
             customHeaders = "Authorization: Bearer fixture"
+            updateMode = SubscriptionUpdateMode.DEFER_ACTIVE
+            lastChecked = 2_000
+            reviewRequired = true
+            deferredProfileIds = longArrayOf(9, 17)
+            partialUpdateApplied = true
+            profileRevision = 42L
         }
         for (share in listOf(false, true)) {
             val output = ByteBufferOutput(1024)
@@ -27,7 +49,30 @@ class SubscriptionBeanTest {
             assertEquals(source.sendHwid, restored.sendHwid)
             assertEquals(source.serverDnsResolver, restored.serverDnsResolver)
             assertEquals(source.customHeaders, restored.customHeaders)
+            if (share) {
+                assertEquals(0L, restored.profileRevision)
+                assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, restored.updateMode.toInt())
+                assertFalse(restored.reviewRequired)
+                assertTrue(restored.deferredProfileIds.isEmpty())
+            } else {
+                assertEquals(source.profileRevision, restored.profileRevision)
+                assertEquals(source.updateMode, restored.updateMode)
+                assertEquals(source.lastChecked, restored.lastChecked)
+                assertTrue(restored.reviewRequired)
+                assertArrayEquals(source.deferredProfileIds, restored.deferredProfileIds)
+                assertTrue(restored.partialUpdateApplied)
+            }
         }
+    }
+
+    @Test fun versionFiveSubscriptionStartsAtRevisionZero() {
+        val output = ByteBufferOutput(1024)
+        SubscriptionBean().apply { initializeDefaultValues() }.serializeToBuffer(output)
+        val version = ByteBufferOutput(4).apply { writeInt(5) }.toBytes()
+        val legacy = output.toBytes().let { version + it.copyOfRange(version.size, it.size - Long.SIZE_BYTES) }
+        val restored = SubscriptionBean().apply { deserializeFromBuffer(ByteBufferInput(legacy)) }
+        assertEquals(0L, restored.profileRevision)
+        assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, restored.updateMode.toInt())
     }
     @Test fun oldVersionThreeKeepsHwidAndDefaultsNewFields() {
         val output = ByteBufferOutput(1024)
@@ -51,5 +96,10 @@ class SubscriptionBeanTest {
         assertEquals("hwid=old", restored.customHwidParams)
         assertEquals("", restored.serverDnsResolver)
         assertEquals("", restored.customHeaders)
+        assertEquals(100, restored.lastUpdated.toInt())
+        assertEquals(SubscriptionUpdateMode.APPLY_IMMEDIATELY, restored.updateMode.toInt())
+        assertEquals(0, restored.lastChecked.toInt())
+        assertFalse(restored.reviewRequired)
+        assertTrue(restored.deferredProfileIds.isEmpty())
     }
 }

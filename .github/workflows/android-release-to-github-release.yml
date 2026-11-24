@@ -2,7 +2,7 @@ name: Android Release APK
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, 'prerelease/v*']
     paths-ignore: ['**/*.md']
   workflow_dispatch:
     inputs:
@@ -19,24 +19,36 @@ on:
         required: false
         type: boolean
         default: false
+      prerelease:
+        description: 'Mark the published release as a pre-release.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 concurrency:
   group: android-release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/heads/prerelease/v') }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-  NEKO_DEV_BUILD: ${{ github.ref_name == 'dev' && '1' || '0' }}
+  NEKO_PRERELEASE: ${{ (inputs.prerelease || github.ref_name == 'dev' || startsWith(github.ref, 'refs/heads/prerelease/v')) && '1' || '0' }}
+  NEKO_PUBLISH_PRERELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[publish prerelease]') && 'true' || 'false' }}
+  NEKO_REFRESH_PRERELEASE: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/heads/prerelease/v') && contains(github.event.head_commit.message, '[refresh prerelease assets]') && 'true' || 'false' }}
   KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
   ALIAS_NAME: ${{ secrets.ALIAS_NAME }}
   ALIAS_PASS: ${{ secrets.ALIAS_PASS }}
 
 jobs:
   build-and-publish:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[build]')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref_name == 'dev' && contains(github.event.head_commit.message, '[build]')) ||
+      (startsWith(github.ref, 'refs/heads/prerelease/v') &&
+        (contains(github.event.head_commit.message, '[publish prerelease]') ||
+         contains(github.event.head_commit.message, '[refresh prerelease assets]')))
     timeout-minutes: 90
     runs-on: ubuntu-24.04
     steps:
@@ -46,13 +58,20 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
           INPUT_TITLE: ${{ inputs.title }}
-        run: python3 .github/scripts/prepare_release.py
-      - name: Reject an existing release before building
-        if: inputs.publish
+        run: |
+          if [ "$NEKO_PUBLISH_PRERELEASE" = true ] || [ "$NEKO_REFRESH_PRERELEASE" = true ]; then
+            export INPUT_TAG="${GITHUB_REF_NAME#prerelease/}"
+          fi
+          python3 .github/scripts/prepare_release.py
+      - name: Check GitHub release before building
+        if: inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true' || env.NEKO_REFRESH_PRERELEASE == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+          if [ "$NEKO_REFRESH_PRERELEASE" = true ]; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+              --jq '.prerelease and (.draft | not) and (.immutable | not)' | grep -qx true
+          elif gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             echo "Release $RELEASE_TAG already exists; refusing to overwrite it."
             exit 1
           fi
@@ -131,8 +150,13 @@ jobs:
         with:
           name: release-apks
           path: release-assets/
+      - name: Replace verified pre-release assets
+        if: env.NEKO_REFRESH_PRERELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/scripts/refresh_prerelease_assets.py release-assets
       - name: Publish GitHub release
-        if: inputs.publish
+        if: env.NEKO_REFRESH_PRERELEASE != 'true' && (inputs.publish || env.NEKO_PUBLISH_PRERELEASE == 'true')
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -142,5 +166,5 @@ jobs:
             exit 1
           fi
           OPTIONS=()
-          if [ "$NEKO_DEV_BUILD" = 1 ]; then OPTIONS+=(--prerelease --latest=false); fi
+          if [ "$NEKO_PRERELEASE" = 1 ]; then OPTIONS+=(--prerelease --latest=false); fi
           gh release create "$RELEASE_TAG" release-assets/* --target "$GITHUB_SHA" --title "$RELEASE_TITLE" --notes-file release-notes.txt "${OPTIONS[@]}"

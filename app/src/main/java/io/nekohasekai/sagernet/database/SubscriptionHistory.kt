@@ -42,14 +42,15 @@ object SubscriptionHistory {
         return digest.digest()
     }
 
-    fun referencedProfiles(): Set<Long> = buildSet {
-        add(DataStore.selectedProxy)
-        if (DataStore.serviceState.started) add(DataStore.currentProfile)
+    fun configuredReferences(): Set<Long> = buildSet {
         NetworkProfiles.policies().forEach { add(it.profileId) }
         SagerDatabase.rulesDao.allRules().forEach { add(it.outbound); add(it.fallbackProfile) }
         SagerDatabase.groupDao.allGroups().forEach { add(it.frontProxy); add(it.landingProxy) }
         SagerDatabase.proxyDao.getAll().forEach { (it.requireBean() as? ChainBean)?.proxies?.let(::addAll) }
     }
+
+    private fun referencedProfiles(): Set<Long> = configuredReferences() + DataStore.selectedProxy +
+        if (DataStore.serviceState.started) setOf(DataStore.currentProfile) else emptySet()
 
     /** Caller owns the Room transaction; recheck the revision after the user confirms. */
     @Synchronized fun restore(id: Long, expected: ByteArray) {
@@ -84,6 +85,7 @@ object SubscriptionHistory {
         SagerDatabase.proxyDao.deleteByGroup(id)
         SagerDatabase.proxyDao.insert(oldProfiles)
         SagerDatabase.groupDao.getById(id)?.let { group ->
+            group.subscription?.resetUpdateStatus()
             group.subscription?.lastUpdated = oldGroup.subscription?.lastUpdated ?: 0
             group.subscription?.subscriptionUserinfo = oldGroup.subscription?.subscriptionUserinfo
             SagerDatabase.groupDao.updateGroup(group)

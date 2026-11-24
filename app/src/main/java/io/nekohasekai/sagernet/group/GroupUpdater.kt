@@ -1,9 +1,12 @@
 package io.nekohasekai.sagernet.group
 
 import io.nekohasekai.sagernet.*
+import io.nekohasekai.sagernet.bg.SubscriptionRuntime
+import io.nekohasekai.sagernet.bg.subscriptionDelaySeconds
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProxyGroup
+import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.database.SubscriptionBean
 import io.nekohasekai.sagernet.fmt.AbstractBean
 import io.nekohasekai.sagernet.fmt.http.HttpBean
@@ -21,14 +24,14 @@ import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
 @Suppress("EXPERIMENTAL_API_USAGE")
-abstract class GroupUpdater {
+internal abstract class GroupUpdater {
 
     abstract suspend fun doUpdate(
         proxyGroup: ProxyGroup,
         subscription: SubscriptionBean,
         userInterface: GroupManager.Interface?,
         byUser: Boolean
-    )
+    ): SubscriptionUpdateResult
 
     data class Progress(
         var max: Int
@@ -126,50 +129,58 @@ abstract class GroupUpdater {
 
         fun startUpdate(proxyGroup: ProxyGroup, byUser: Boolean) {
             runOnDefaultDispatcher {
-                executeUpdate(proxyGroup, byUser)
+                executeUpdate(proxyGroup.id, byUser)
             }
         }
 
-        suspend fun executeUpdate(proxyGroup: ProxyGroup, byUser: Boolean): Boolean {
-            return coroutineScope {
-                if (!updating.add(proxyGroup.id)) return@coroutineScope false
-                GroupManager.postReload(proxyGroup.id)
+        suspend fun executeUpdate(
+            groupId: Long, byUser: Boolean, deferredOnly: Boolean = false,
+        ): SubscriptionUpdateResult {
+            if (!updating.add(groupId)) return SubscriptionUpdateResult.RETRY
+            val userInterface = if (byUser) GroupManager.userInterface else null
+            var group: ProxyGroup? = null
+            try {
+                val currentGroup = SagerDatabase.groupDao.getById(groupId)
+                    ?: return SubscriptionUpdateResult.SKIPPED
+                val subscription = currentGroup.subscription ?: return SubscriptionUpdateResult.SKIPPED
+                if (!byUser && !subscription.autoUpdate) return SubscriptionUpdateResult.SKIPPED
+                if (!byUser && deferredOnly &&
+                    (subscription.updateMode != SubscriptionUpdateMode.DEFER_ACTIVE ||
+                        subscription.deferredProfileIds.isEmpty())
+                ) return SubscriptionUpdateResult.SKIPPED
+                if (!byUser && !deferredOnly && subscriptionDelaySeconds(
+                        System.currentTimeMillis() / 1000,
+                        maxOf(subscription.lastUpdated, subscription.lastChecked).toLong(),
+                        subscription.autoUpdateDelay,
+                    ) > 0
+                ) return SubscriptionUpdateResult.SKIPPED
+                group = currentGroup
+                GroupManager.postReload(groupId)
 
-                val subscription = proxyGroup.subscription!!
-                val connected = DataStore.serviceState.connected
-                val userInterface = GroupManager.userInterface
-
-                if (byUser && (subscription.link?.startsWith("http://") == true || subscription.updateWhenConnectedOnly) && !connected) {
-                    if (userInterface == null || !userInterface.confirm(app.getString(R.string.update_subscription_warning))) {
-                        finishUpdate(proxyGroup)
-                        cancel()
-                        return@coroutineScope true
-                    }
+                if (subscription.updateWhenConnectedOnly ||
+                    (byUser && subscription.link.startsWith("http://", ignoreCase = true))
+                ) {
+                    val state = SubscriptionRuntime.read().state
+                    if (!state.connected && (!byUser ||
+                            userInterface?.confirm(app.getString(R.string.update_subscription_warning)) != true)
+                    ) return SubscriptionUpdateResult.SKIPPED
                 }
 
-                try {
-                    RawUpdater.doUpdate(proxyGroup, subscription, userInterface, byUser)
-                    true
-                } catch (cancelled: kotlinx.coroutines.CancellationException) {
-                    finishUpdate(proxyGroup)
-                    throw cancelled
-                } catch (e: Throwable) {
-                    if (e is SubscriptionResponseException) {
-                        Logs.d("Subscription import failed: ${e.problem}", e)
-                        Logs.w(app.getString(R.string.no_proxies_found))
-                    } else Logs.w(e)
-                    userInterface?.onUpdateFailure(proxyGroup, e.readableMessage)
-                    finishUpdate(proxyGroup)
-                    false
-                }
+                return RawUpdater.doUpdate(currentGroup, subscription, userInterface, byUser)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (e: Exception) {
+                if (e is SubscriptionResponseException) {
+                    Logs.d("Subscription import failed: ${e.problem}", e)
+                    Logs.w(app.getString(R.string.no_proxies_found))
+                } else Logs.w(e)
+                group?.let { userInterface?.onUpdateFailure(it, e.readableMessage) }
+                return SubscriptionUpdateResult.RETRY
+            } finally {
+                updating.remove(groupId)
+                progress.remove(groupId)
+                if (group != null) withContext(NonCancellable) { GroupManager.postUpdate(groupId) }
             }
-        }
-
-
-        suspend fun finishUpdate(proxyGroup: ProxyGroup) {
-            updating.remove(proxyGroup.id)
-            progress.remove(proxyGroup.id)
-            GroupManager.postUpdate(proxyGroup.id)
         }
 
     }

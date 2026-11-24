@@ -15,6 +15,7 @@ import (
 	"github.com/matsuridayo/libneko/neko_log"
 	"github.com/sagernet/sing-box/nekoutils"
 	"github.com/sagernet/sing-box/option"
+	"github.com/sagernet/sing-box/protocol/group"
 	"golang.org/x/sys/unix"
 )
 
@@ -67,6 +68,10 @@ func InitCore(process, cachePath, internalAssets, externalAssets string,
 
 	// nekoutils
 	nekoutils.Selector_OnProxySelected = intfNB4A.Selector_OnProxySelected
+	group.OnURLTestSelectionChanged = intfNB4A.UrlTest_OnSelectionChanged
+	if isBgProcess {
+		group.OnURLTestRecoveryFailed = intfNB4A.UrlTest_OnRecoveryFailed
+	}
 
 	// Set up some component
 	ready := make(chan struct{})

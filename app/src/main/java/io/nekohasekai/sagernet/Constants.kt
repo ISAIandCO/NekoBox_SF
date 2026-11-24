@@ -63,6 +63,7 @@ object Key {
 
     const val NETWORK_CHANGE_RESET_CONNECTIONS = "networkChangeResetConnections"
     const val RESTART_PROFILE_ON_NETWORK_CHANGE = "restartProfileOnNetworkChange"
+    const val RESTART_PROFILE_ON_SUBSCRIPTION_UPDATE = "restartProfileOnSubscriptionUpdate"
     const val WAKE_RESET_CONNECTIONS = "wakeResetConnections"
     const val RULES_PROVIDER = "rulesProvider"
     const val LOG_LEVEL = "logLevel"
@@ -188,6 +189,7 @@ object Key {
     const val SUBSCRIPTION_FORCE_RESOLVE = "subscriptionForceResolve"
     const val SUBSCRIPTION_DEDUPLICATION = "subscriptionDeduplication"
     const val SUBSCRIPTION_UPDATE = "subscriptionUpdate"
+    const val SUBSCRIPTION_UPDATE_MODE = "subscriptionUpdateMode"
     const val SUBSCRIPTION_UPDATE_WHEN_CONNECTED_ONLY = "subscriptionUpdateWhenConnectedOnly"
     const val SUBSCRIPTION_USER_AGENT = "subscriptionUserAgent"
     const val SUBSCRIPTION_SEND_HWID = "subscriptionSendHwid"
@@ -241,6 +243,12 @@ object GroupOrder {
     const val BY_DELAY = 2
 }
 
+object SubscriptionUpdateMode {
+    const val REVIEW_CRITICAL = 0
+    const val DEFER_ACTIVE = 1
+    const val APPLY_IMMEDIATELY = 2
+}
+
 object SubscriptionFilterMode {
     const val DISABLED = 0
     const val INCLUDE = 1
@@ -251,6 +259,7 @@ object Action {
     const val SERVICE = "io.nekohasekai.sagernet.SERVICE"
     const val CLOSE = "io.nekohasekai.sagernet.CLOSE"
     const val RELOAD = "io.nekohasekai.sagernet.RELOAD"
+    const val SUBSCRIPTION_UPDATED = "io.nekohasekai.sagernet.SUBSCRIPTION_UPDATED"
 
     // const val SWITCH_WAKE_LOCK = "io.nekohasekai.sagernet.SWITCH_WAKELOCK"
     const val RESET_UPSTREAM_CONNECTIONS = "moe.nb4a.RESET_UPSTREAM_CONNECTIONS"

@@ -8,11 +8,13 @@ import android.os.Build.VERSION_CODES
 import androidx.annotation.RequiresApi
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.bg.ServiceNotification
+import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.ktx.Logs
 import io.nekohasekai.sagernet.ktx.app
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
+import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
 import io.nekohasekai.sagernet.utils.PackageCache
 import libcore.BoxPlatformInterface
 import libcore.Libcore
@@ -81,17 +83,36 @@ class NativeInterface : BoxPlatformInterface, NB4AInterface {
         return DataStore.rulesProvider == 0
     }
 
+    override fun urlTest_OnSelectionChanged() {
+        if (DataStore.serviceState.connected) SubscriptionUpdater.onActiveProfilesChanged()
+    }
+
+    override fun urlTest_OnRecoveryFailed(groupTag: String) {
+        val service = DataStore.baseService ?: return
+        if (!service.data.subscriptionReload.hasPendingChanges) return
+        val proxy = service.data.proxy ?: return
+        runOnMainDispatcher {
+            if (service.data.proxy === proxy) service.data.subscriptionReload.onRecoveryFailed(groupTag)
+        }
+    }
+
     override fun selector_OnProxySelected(selectorTag: String, tag: String) {
         if (selectorTag != "proxy") {
             Logs.d("other selector: $selectorTag")
             return
         }
+        SubscriptionUpdater.onActiveProfilesChanged()
         Libcore.resetAllConnections(true)
         DataStore.baseService?.apply {
             runOnDefaultDispatcher {
-                val id = data.proxy!!.config.profileTagMap
+                val proxy = data.proxy ?: return@runOnDefaultDispatcher
+                val id = proxy.config.profileTagMap
                     .filterValues { it == tag }.keys.firstOrNull() ?: -1
                 val ent = SagerDatabase.proxyDao.getById(id) ?: return@runOnDefaultDispatcher
+                if (data.proxy === proxy) {
+                    proxy.activeProfileId = id
+                    runOnMainDispatcher { data.subscriptionReload.onProfileSelected() }
+                }
                 // traffic & title
                 data.proxy?.apply {
                     displayProfileName = ServiceNotification.genTitle(ent)

@@ -323,6 +323,12 @@
             app:key="restartProfileOnNetworkChange"
             app:title="@string/restart_profile_on_network_change"
             app:useSimpleSummaryProvider="true" />
+        <SwitchPreferenceCompat
+            app:defaultValue="true"
+            app:icon="@drawable/ic_baseline_flip_camera_android_24"
+            app:key="restartProfileOnSubscriptionUpdate"
+            app:summary="@string/restart_profile_on_subscription_update_summary"
+            app:title="@string/restart_profile_on_subscription_update" />
         <Preference app:key="clashApiSecret" app:dependency="enableClashAPI"
             app:title="@string/clash_api_token" app:summary="@string/clash_api_token_summary" />
         <SwitchPreferenceCompat

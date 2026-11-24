@@ -1,0 +1,122 @@
+--- a/protocol/group/urltest.go
++++ b/protocol/group/urltest.go
+@@ -131,0 +132,13 @@
++// SelectedOutboundTags reports the TCP and UDP selections independently.
++func (s *URLTest) SelectedOutboundTags() (tcp, udp string) {
++	if g := s.group; g != nil {
++		if selected := g.selectedOutboundTCP.Load(); selected != nil {
++			tcp = selected.Tag()
++		}
++		if selected := g.selectedOutboundUDP.Load(); selected != nil {
++			udp = selected.Tag()
++		}
++	}
++	return
++}
++
+@@ -144 +157,10 @@
+-func (s *URLTest) checkAfterFailure() {
++type urlTestRecoveryKey struct{}
++
++type urlTestRecovery struct {
++	group   *URLTestGroup
++	tag     string
++	network string
++	report  func(string)
++}
++
++func (s *URLTest) checkAfterFailure(network string) {
+@@ -146,0 +169,3 @@
++		if report := OnURLTestRecoveryFailed; s.group.strategy != "direct-fallback" && report != nil {
++			ctx = context.WithValue(ctx, urlTestRecoveryKey{}, urlTestRecovery{s.group, s.Tag(), network, report})
++		}
+@@ -166 +191 @@
+-		s.checkAfterFailure()
++		s.checkAfterFailure(N.NetworkName(network))
+@@ -176 +201 @@
+-	s.checkAfterFailure()
++	s.checkAfterFailure(N.NetworkName(network))
+@@ -187 +212 @@
+-		s.checkAfterFailure()
++		s.checkAfterFailure(N.NetworkUDP)
+@@ -197 +222 @@
+-	s.checkAfterFailure()
++	s.checkAfterFailure(N.NetworkUDP)
+@@ -675,0 +701,6 @@
++	if recovery, ok := ctx.Value(urlTestRecoveryKey{}).(urlTestRecovery); ok && recovery.group == g &&
++		!g.pause.IsDevicePaused() && !g.pause.IsNetworkPaused() {
++		if _, confirmed := g.Select(recovery.network); !confirmed {
++			recovery.report(recovery.tag)
++		}
++	}
+@@ -677,0 +709,6 @@
++
++// OnURLTestSelectionChanged is set by the Android bridge during initialization.
++var OnURLTestSelectionChanged func()
++
++// OnURLTestRecoveryFailed reports a dial-triggered check with no usable candidate.
++var OnURLTestRecoveryFailed func(groupTag string)
+@@ -715,0 +753,3 @@
++		if g.strategy != "direct-fallback" && OnURLTestSelectionChanged != nil {
++			OnURLTestSelectionChanged()
++		}
+--- a/protocol/group/background_recovery_test.go
++++ b/protocol/group/background_recovery_test.go
+@@ -5,0 +6 @@
++	"fmt"
+@@ -162,0 +164,50 @@
++
++func TestFailedRecoveryReportsExhaustedGroup(t *testing.T) {
++	for _, noAlternative := range []bool{false, true} {
++		t.Run(fmt.Sprintf("exhausted=%t", noAlternative), func(t *testing.T) {
++			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
++				w.WriteHeader(http.StatusNoContent)
++			}))
++			defer server.Close()
++			ctx, cancel := context.WithCancel(pause.WithDefaultManager(service.ContextWithDefaultRegistry(context.Background())))
++			defer cancel()
++			target := server.Listener.Addr().String()
++			first := &recoveryTestOutbound{Adapter: outbound.NewAdapter("test", "first", []string{"tcp"}, nil), control: target}
++			second := &recoveryTestOutbound{Adapter: outbound.NewAdapter("test", "second", []string{"tcp"}, nil), control: target}
++			manager := &recoveryTestManager{items: map[string]adapter.Outbound{"first": first, "second": second}}
++			g, err := NewURLTestGroup(ctx, manager, log.NewNOPFactory().Logger(),
++				[]adapter.Outbound{first, second}, server.URL, time.Hour, 0, time.Hour, time.Second, "priority", false, false)
++			if err != nil {
++				t.Fatal(err)
++			}
++			defer g.Close()
++			g.PostStart(true)
++
++			reports := make(chan string, 1)
++			previous := OnURLTestRecoveryFailed
++			OnURLTestRecoveryFailed = func(tag string) { reports <- tag }
++			defer func() { OnURLTestRecoveryFailed = previous }()
++
++			s := &URLTest{Adapter: outbound.NewAdapter("urltest", "active-group", []string{"tcp"}, nil), group: g, logger: log.NewNOPFactory().Logger()}
++			s.SetProbesPaused(true)
++			first.failed.Store(true)
++			second.failed.Store(noAlternative)
++			before := first.probes.Load()
++			if _, err = s.DialContext(ctx, "tcp", M.ParseSocksaddr("payload.test:443")); err == nil {
++				t.Fatal("expected failed node")
++			}
++			waitForRecovery(t, func() bool { return first.probes.Load() > before && !g.checking.Load() })
++
++			select {
++			case tag := <-reports:
++				if !noAlternative || tag != "active-group" {
++					t.Fatalf("unexpected recovery report for %q", tag)
++				}
++			default:
++				if noAlternative {
++					t.Fatal("group exhaustion was not reported")
++				}
++			}
++		})
++	}
++}
+--- a/protocol/group/urltest_strategy_test.go
++++ b/protocol/group/urltest_strategy_test.go
+@@ -49 +49 @@
+-	managed.checkAfterFailure()
++	managed.checkAfterFailure("tcp")

@@ -66,6 +66,7 @@ class GroupSettingsActivity(
         DataStore.subscriptionCustomHwidParams = subscription.customHwidParams
         DataStore.subscriptionServerDns = subscription.serverDnsResolver
         DataStore.subscriptionHeaders = subscription.customHeaders
+        DataStore.subscriptionUpdateMode = subscription.updateMode
         DataStore.subscriptionAutoUpdate = subscription.autoUpdate
         DataStore.subscriptionAutoUpdateDelay = subscription.autoUpdateDelay
         DataStore.subscriptionFilterMode = subscription.filterMode
@@ -84,6 +85,10 @@ class GroupSettingsActivity(
         val isSubscription = type == GroupType.SUBSCRIPTION
         if (isSubscription) {
             subscription = (subscription ?: SubscriptionBean().applyDefaultValues()).apply {
+                if (link != DataStore.subscriptionLink) lastUpdated = 0
+                if (link != DataStore.subscriptionLink || updateMode != DataStore.subscriptionUpdateMode ||
+                    filterMode != DataStore.subscriptionFilterMode || filterRegex != DataStore.subscriptionFilterRegex
+                ) resetUpdateStatus()
                 link = DataStore.subscriptionLink
                 forceResolve = DataStore.subscriptionForceResolve
                 deduplication = DataStore.subscriptionDeduplication
@@ -93,6 +98,7 @@ class GroupSettingsActivity(
                 customHwidParams = DataStore.subscriptionCustomHwidParams
                 serverDnsResolver = DataStore.subscriptionServerDns.trim()
                 customHeaders = DataStore.subscriptionHeaders
+                updateMode = DataStore.subscriptionUpdateMode
                 autoUpdate = DataStore.subscriptionAutoUpdate
                 autoUpdateDelay = DataStore.subscriptionAutoUpdateDelay
                 filterMode = DataStore.subscriptionFilterMode

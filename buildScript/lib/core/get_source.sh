@@ -10,7 +10,7 @@ pushd "$PROJECT_ROOT/.."
 # Reverse only our recorded overlay; unrelated dependency edits cause a clear
 # failure instead of being discarded by a reset/clean.
 prepare_overlay() {
-  local directory="$1" repository="$2" commit="$3" patch="$4"
+  local directory="$1" repository="$2" commit="$3" patch="$4" extra_patch="${5:-}"
   if [ ! -d "$directory" ]; then
     git clone --no-checkout "$repository" "$directory"
     git -C "$directory" checkout --detach "$commit"
@@ -19,6 +19,10 @@ prepare_overlay() {
     cd "$directory"
     local recorded
     recorded="$(git rev-parse --git-path neko-applied.patch)"
+    if [ -f "$recorded.extra" ]; then
+      git apply --reverse --unidiff-zero "$recorded.extra"
+      rm "$recorded.extra"
+    fi
     if [ -f "$recorded" ]; then
       git apply --reverse --check "$recorded"
       git apply --reverse "$recorded"
@@ -33,9 +37,14 @@ prepare_overlay() {
     git apply --check "$patch"
     git apply "$patch"
     cp "$patch" "$recorded"
+    if [ -n "$extra_patch" ]; then
+      git apply --unidiff-zero "$extra_patch"
+      cp "$extra_patch" "$recorded.extra"
+    fi
   )
 }
-prepare_overlay sing-box-114 https://github.com/SagerNet/sing-box.git "$COMMIT_SING_BOX" "$PROJECT_ROOT/buildScript/lib/core/compat_114.patch"
+prepare_overlay sing-box-114 https://github.com/SagerNet/sing-box.git "$COMMIT_SING_BOX" "$PROJECT_ROOT/buildScript/lib/core/compat_114.patch" \
+  "$PROJECT_ROOT/buildScript/lib/core/subscription_selection.patch"
 prepare_overlay sing-quic-114 https://github.com/SagerNet/sing-quic.git "$COMMIT_SING_QUIC" "$PROJECT_ROOT/buildScript/lib/core/compat_quic_114.patch"
 
 ####

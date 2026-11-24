@@ -5,6 +5,10 @@ import android.os.Build
 import android.provider.Settings
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SubscriptionFilterMode
+import io.nekohasekai.sagernet.SubscriptionUpdateMode
+import io.nekohasekai.sagernet.bg.SubscriptionRuntime
+import io.nekohasekai.sagernet.bg.SubscriptionReload
+import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.internal.ChainBean
 import io.nekohasekai.sagernet.fmt.KryoConverters
@@ -40,7 +44,7 @@ import org.yaml.snakeyaml.error.YAMLException
 import androidx.core.net.toUri
 
 @Suppress("EXPERIMENTAL_API_USAGE")
-object RawUpdater : GroupUpdater() {
+internal object RawUpdater : GroupUpdater() {
 
     private fun buildHwidHeaders(customParams: String?): Map<String, String> {
         val params = if (customParams.isNullOrBlank()) {
@@ -86,8 +90,7 @@ object RawUpdater : GroupUpdater() {
         subscription: SubscriptionBean,
         userInterface: GroupManager.Interface?,
         byUser: Boolean
-    ) {
-
+    ): SubscriptionUpdateResult {
         val groupSnapshot = KryoConverters.serialize(proxyGroup)
         val link = subscription.link
         var proxies: List<AbstractBean>
@@ -179,7 +182,7 @@ object RawUpdater : GroupUpdater() {
         val duplicate = ArrayList<String>()
         val added = mutableListOf<String>()
         val updated = mutableMapOf<String, String>()
-        var deleted: List<String> = emptyList()
+        val deleted = mutableListOf<String>()
         var changed = 0
         val exists = SagerDatabase.proxyDao.getByGroup(proxyGroup.id)
         if (subscription.deduplication) {
@@ -214,150 +217,211 @@ object RawUpdater : GroupUpdater() {
 
         Logs.d("Unique profiles: ${nameMap.size}")
 
-        val snapshots = exists.associate { it.id to KryoConverters.serialize(it.requireBean()) }
+        val revision = SubscriptionHistory.revision(exists)
         val matches = matchSubscriptionProfiles(
             exists.associate { it.id to (it.displayName() to subscriptionFingerprint(it.requireBean())) },
             nameMap.mapValues { subscriptionFingerprint(it.value) },
         )
-        val byId = exists.associateBy { it.id }
-        val toReplace = matches.mapValues { byId.getValue(it.value) }
-        val retained = matches.values.toSet()
-        val toDelete = exists.filter { it.id !in retained }
-        val referenced = SubscriptionHistory.referencedProfiles()
-        val hasProfileChanges = toDelete.isNotEmpty() || nameMap.entries.withIndex().any { (index, entry) ->
-            val previous = toReplace[entry.key]
-            previous == null || previous.userOrder != index + 1L || subscriptionChanges(previous.requireBean(), entry.value).isNotEmpty()
+        val existingById = exists.associateBy { it.id }
+        val incomingNames = matches.entries.associate { (name, id) -> id to name }
+        val categories = matches.mapValues { (name, id) ->
+            subscriptionChanges(existingById.getValue(id).requireBean(), nameMap.getValue(name))
         }
-        val protectedRemovals = toDelete.filter { it.id in referenced }
-        if (protectedRemovals.isNotEmpty()) {
-            check(byUser && userInterface != null) { app.getString(R.string.subscription_requires_manual_update) }
-            val names = protectedRemovals.take(20).joinToString("\n") { it.displayName() }
-            if (!userInterface.confirm(app.getString(R.string.subscription_remove_referenced, names))) {
-                finishUpdate(proxyGroup)
-                return
+        val changes = exists.map { profile ->
+            val name = incomingNames[profile.id]
+            SubscriptionChange(
+                profile.id,
+                profile.displayName(),
+                name,
+                name == null || categories.getValue(name).any { it != "name" },
+            )
+        }
+        val removals = changes.filter { it.newName == null }
+        val mode = subscription.updateMode
+        val requiresPreview = byUser && mode != SubscriptionUpdateMode.APPLY_IMMEDIATELY
+        val approvedRemovals = if (requiresPreview && removals.isNotEmpty()) {
+            val protected = SubscriptionHistory.configuredReferences() +
+                DataStore.selectedProxy + SubscriptionRuntime.read().activeIds
+            removals.filter { it.profileId in protected }
+        } else emptyList()
+        if (approvedRemovals.isNotEmpty()) {
+            val names = approvedRemovals.take(20).joinToString("\n") { it.oldName.take(160) }
+            if (userInterface?.confirm(app.getString(R.string.subscription_remove_referenced, names)) != true) {
+                return SubscriptionUpdateResult.SKIPPED
             }
         }
-        if (byUser && userInterface != null) {
-            val lines = mutableListOf<String>()
-            var additions = 0
-            var modifications = 0
-            for ((name, bean) in nameMap) {
-                val previous = toReplace[name]
-                if (previous == null) {
-                    additions++
-                    if (lines.size < 100) lines += "+ ${name.take(160)}"
+        if (requiresPreview && !previewChanges(userInterface, nameMap.keys, categories, removals)) {
+            return SubscriptionUpdateResult.SKIPPED
+        }
+        val approvedIds = approvedRemovals.map { it.profileId }.toSet()
+        val deletedIds = mutableSetOf<Long>()
+        var profilesChanged = false
+        val reviewWasRequired = subscription.reviewRequired
+        val result = SagerDatabase.instance.withTransaction {
+            val currentGroup = SagerDatabase.groupDao.getById(proxyGroup.id)
+            check(currentGroup != null && groupSnapshot.contentEquals(KryoConverters.serialize(currentGroup))) {
+                app.getString(R.string.subscription_changed_during_update)
+            }
+            val current = SagerDatabase.proxyDao.getByGroup(proxyGroup.id)
+            check(revision.contentEquals(SubscriptionHistory.revision(current))) {
+                app.getString(R.string.subscription_changed_during_update)
+            }
+
+            // Read the service again after the download and after any manual dialog.
+            val protectProfiles = mode != SubscriptionUpdateMode.APPLY_IMMEDIATELY &&
+                (!byUser || removals.isNotEmpty())
+            val connectedOnly = !byUser && subscription.updateWhenConnectedOnly
+            val runtime = if (protectProfiles || connectedOnly) SubscriptionRuntime.read() else null
+            if (connectedOnly && runtime?.state?.connected != true) {
+                return@withTransaction SubscriptionUpdateResult.SKIPPED
+            }
+            if (runtime?.isTransitioning == true) return@withTransaction SubscriptionUpdateResult.RETRY
+
+            val configured = if (protectProfiles) SubscriptionHistory.configuredReferences() else emptySet()
+            val selected = DataStore.selectedProxy
+            val active = runtime?.activeIds.orEmpty()
+            if (requiresPreview) {
+                check(removals.none {
+                    it.profileId !in approvedIds &&
+                        (it.profileId == selected || it.profileId in active || it.profileId in configured)
+                }) { app.getString(R.string.subscription_changed_during_update) }
+            }
+            val plan = if (byUser) SubscriptionUpdatePlan() else
+                planSubscriptionUpdate(mode, changes, active, configured, selected)
+            val previous = checkNotNull(currentGroup.subscription)
+            val now = (System.currentTimeMillis() / 1000).toInt()
+            if (plan.holdAll) {
+                previous.lastChecked = now
+                previous.reviewRequired = true
+                SagerDatabase.groupDao.updateGroup(currentGroup)
+                return@withTransaction SubscriptionUpdateResult.NEEDS_REVIEW
+            }
+
+            val currentById = current.associateBy { it.id }
+            val frozenNames = plan.heldIds.map { currentById.getValue(it).displayName() }.toSet()
+            val pending = plan.reviewRequired || plan.deferredIds.isNotEmpty()
+            val entries = buildList<Pair<ProxyEntity?, AbstractBean?>> {
+                nameMap.forEach { (name, bean) ->
+                    val old = matches[name]?.let(currentById::getValue)
+                    when {
+                        old != null && old.id in plan.heldIds -> add(old to null)
+                        name !in frozenNames -> add(old to bean)
+                    }
+                }
+                removals.filter { it.profileId in plan.heldIds }.forEach {
+                    add(currentById.getValue(it.profileId) to null)
+                }
+            }
+            val toDelete = removals.filterNot { it.profileId in plan.heldIds }
+                .map { currentById.getValue(it.profileId) }
+            val changesToApply = toDelete.isNotEmpty() || entries.withIndex().any { (index, entry) ->
+                val (old, bean) = entry
+                old == null || old.userOrder != index + 1L ||
+                    (bean != null && categories.getValue(bean.displayName()).isNotEmpty())
+            }
+            val hasPreviousPartial = previous.partialUpdateApplied && SubscriptionHistory.available(proxyGroup.id)
+            if (changesToApply && !hasPreviousPartial) SubscriptionHistory.capture(currentGroup, current)
+
+            val toUpdate = ArrayList<ProxyEntity>()
+            val toInsert = ArrayList<ProxyEntity>()
+            for ((index, entry) in entries.withIndex()) {
+                val (old, bean) = entry
+                val order = index + 1L
+                if (old == null) {
+                    checkNotNull(bean)
+                    toInsert.add(ProxyEntity(groupId = proxyGroup.id, userOrder = order).putBean(bean))
+                    added.add(bean.displayName())
+                    Logs.d("Inserted profile: ${bean.displayName()}")
                 } else {
-                    val categories = subscriptionChanges(previous.requireBean(), bean)
-                    if (categories.isNotEmpty()) {
-                        modifications++
-                        val labels = categories.map { category -> app.getString(when (category) {
-                            "name" -> R.string.subscription_field_name
-                            "address" -> R.string.subscription_field_address
-                            "dns" -> R.string.subscription_field_dns
-                            "allowed_ips" -> R.string.subscription_field_allowed_ips
-                            "tls" -> R.string.subscription_field_tls
-                            "credentials" -> R.string.subscription_field_credentials
-                            "protocol" -> R.string.subscription_field_protocol
-                            else -> R.string.subscription_field_parameters
-                        }) }
-                        if (lines.size < 100) lines += "~ ${name.take(160)}: ${labels.joinToString()}"
+                    val oldBean = old.requireBean()
+                    val oldName = old.displayName()
+                    var profileChanged = false
+                    if (bean != null) {
+                        bean.customOutboundJson = oldBean.customOutboundJson
+                        bean.customConfigJson = oldBean.customConfigJson
+                        bean.warpExit = oldBean.warpExit
+                        if (bean is WireGuardBean && oldBean is WireGuardBean) bean.useConfigRoutes = oldBean.useConfigRoutes
+                        if (oldBean != bean || oldBean.name != bean.name) {
+                            old.putBean(bean)
+                            profileChanged = true
+                            updated[oldName] = bean.displayName()
+                            Logs.d("Updated profile: ${bean.displayName()}")
+                        }
+                    }
+                    if (profileChanged || old.userOrder != order) {
+                        old.userOrder = order
+                        toUpdate.add(old)
                     }
                 }
             }
-            toDelete.forEach { if (lines.size < 100) lines += "− ${it.displayName().take(160)}" }
-            if (additions + modifications + toDelete.size > 0 && !userInterface.previewSubscription(
-                app.getString(R.string.subscription_preview, additions, modifications, toDelete.size) +
-                    "\n\n" + lines.joinToString("\n") + "\n\n" + app.getString(R.string.subscription_preview_hint)
-            )) {
-                finishUpdate(proxyGroup)
-                return
+            SagerDatabase.proxyDao.insert(toInsert)
+            SagerDatabase.proxyDao.updateProxy(toUpdate)
+            SagerDatabase.proxyDao.deleteProxy(toDelete)
+            deleted.addAll(toDelete.map { it.displayName() })
+            deletedIds.addAll(toDelete.map { it.id })
+            changed = added.size + updated.size + deleted.size
+
+            subscription.lastChecked = now
+            subscription.reviewRequired = plan.reviewRequired
+            subscription.deferredProfileIds = plan.deferredIds.sorted().toLongArray()
+            subscription.partialUpdateApplied = pending && (hasPreviousPartial || changesToApply)
+            subscription.profileRevision = previous.profileRevision + if (changesToApply) 1 else 0
+            if (!pending) subscription.lastUpdated = now
+            SagerDatabase.groupDao.updateGroup(proxyGroup)
+            profilesChanged = changesToApply
+
+            when {
+                plan.reviewRequired -> SubscriptionUpdateResult.NEEDS_REVIEW
+                pending -> SubscriptionUpdateResult.DEFERRED
+                else -> SubscriptionUpdateResult.APPLIED
             }
         }
-        SagerDatabase.instance.withTransaction {
-        val currentGroup = SagerDatabase.groupDao.getById(proxyGroup.id)
-        check(currentGroup != null && groupSnapshot.contentEquals(KryoConverters.serialize(currentGroup))) {
-            app.getString(R.string.subscription_changed_during_update)
+        // The selected profile can be removed after its connection ends in partial mode.
+        if (DataStore.selectedProxy in deletedIds) DataStore.selectedProxy = 0L
+        if (profilesChanged) SubscriptionReload.notifyChanged(proxyGroup.id)
+        SubscriptionUpdater.reportStatus(proxyGroup.id, reviewWasRequired)
+        if (result == SubscriptionUpdateResult.APPLIED) {
+            userInterface?.onUpdateSuccess(proxyGroup, changed, added, updated, deleted, duplicate, byUser)
         }
-        val current = SagerDatabase.proxyDao.getByGroup(proxyGroup.id)
-        check(current.size == snapshots.size && current.all {
-            snapshots[it.id]?.contentEquals(KryoConverters.serialize(it.requireBean())) == true
-        }) { app.getString(R.string.subscription_changed_during_update) }
+        return result
+    }
 
-        if (hasProfileChanges) SubscriptionHistory.capture(currentGroup, current)
+    private suspend fun previewChanges(
+        userInterface: GroupManager.Interface?,
+        incomingNames: Set<String>,
+        categories: Map<String, Set<String>>,
+        removals: List<SubscriptionChange>,
+    ): Boolean {
+        val additions = incomingNames.count { it !in categories }
+        val modifications = categories.values.count { it.isNotEmpty() }
+        if (additions + modifications + removals.size == 0) return true
 
-        val toUpdate = ArrayList<ProxyEntity>()
-        deleted = toDelete.map { it.displayName() }
-        var userOrder = 1L
-        changed = toDelete.size
-        for ((name, bean) in nameMap.entries) {
-            if (toReplace.contains(name)) {
-                val entity = toReplace[name]!!
-                val existsBean = entity.requireBean()
-                val oldName = entity.displayName()
-                // 更新订阅，保留自定义覆写设置
-                bean.customOutboundJson = existsBean.customOutboundJson
-                bean.customConfigJson = existsBean.customConfigJson
-                bean.warpExit = existsBean.warpExit
-                if (bean is WireGuardBean && existsBean is WireGuardBean) bean.useConfigRoutes = existsBean.useConfigRoutes
-                when {
-                    existsBean != bean || existsBean.name != bean.name -> {
-                        changed++
-                        entity.userOrder = userOrder
-                        entity.putBean(bean)
-                        toUpdate.add(entity)
-                        updated[oldName] = name
-
-                        Logs.d("Updated profile: $name")
-                    }
-
-                    entity.userOrder != userOrder -> {
-                        entity.putBean(bean)
-                        toUpdate.add(entity)
-                        entity.userOrder = userOrder
-
-                        Logs.d("Reordered profile: $name")
-                    }
-
-                    else -> {
-                        Logs.d("Ignored profile: $name")
-                    }
+        val lines = buildList {
+            for (name in incomingNames) {
+                if (size == 100) break
+                val fields = categories[name]
+                if (fields == null) {
+                    add("+ ${name.take(160)}")
+                } else if (fields.isNotEmpty()) {
+                    val labels = fields.map { field -> app.getString(when (field) {
+                        "name" -> R.string.subscription_field_name
+                        "address" -> R.string.subscription_field_address
+                        "dns" -> R.string.subscription_field_dns
+                        "allowed_ips" -> R.string.subscription_field_allowed_ips
+                        "tls" -> R.string.subscription_field_tls
+                        "credentials" -> R.string.subscription_field_credentials
+                        "protocol" -> R.string.subscription_field_protocol
+                        else -> R.string.subscription_field_parameters
+                    }) }
+                    add("~ ${name.take(160)}: ${labels.joinToString()}")
                 }
-            } else {
-                changed++
-                SagerDatabase.proxyDao.addProxy(
-                    ProxyEntity(
-                        groupId = proxyGroup.id, userOrder = userOrder
-                    ).apply {
-                        putBean(bean)
-                    })
-                added.add(name)
-                Logs.d("Inserted profile: $name")
             }
-            userOrder++
+            removals.take(100 - size).forEach { add("− ${it.oldName.take(160)}") }
         }
-
-        SagerDatabase.proxyDao.updateProxy(toUpdate).also {
-            Logs.d("Updated profiles: $it")
-        }
-
-        SagerDatabase.proxyDao.deleteProxy(toDelete).also {
-            Logs.d("Deleted profiles: $it")
-        }
-
-        val existCount = SagerDatabase.proxyDao.countByGroup(proxyGroup.id).toInt()
-
-        if (existCount != proxies.size) {
-            Logs.e("Exist profiles: $existCount, new profiles: ${proxies.size}")
-        }
-
-        subscription.lastUpdated = (System.currentTimeMillis() / 1000).toInt()
-        SagerDatabase.groupDao.updateGroup(proxyGroup)
-        }
-        finishUpdate(proxyGroup)
-
-        userInterface?.onUpdateSuccess(
-            proxyGroup, changed, added, updated, deleted, duplicate, byUser
-        )
+        return userInterface?.previewSubscription(
+            app.getString(R.string.subscription_preview, additions, modifications, removals.size) +
+                "\n\n" + lines.joinToString("\n") + "\n\n" + app.getString(R.string.subscription_preview_hint)
+        ) == true
     }
 
     private fun subscriptionResponseError(problem: SubscriptionResponseProblem): SubscriptionResponseException {
